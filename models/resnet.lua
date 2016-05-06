@@ -16,7 +16,9 @@ local Convolution = cudnn.SpatialConvolution
 local Avg = cudnn.SpatialAveragePooling
 local ReLU = cudnn.ReLU
 local Max = nn.SpatialMaxPooling
-local SBatchNorm = nn.SpatialBatchNormalization
+local function SBatchNorm(nOutput)
+   return nn.SpatialBatchNormalization(nOutput, nil, 0.003)
+end
 
 local function createModel(opt)
    local depth = opt.depth
