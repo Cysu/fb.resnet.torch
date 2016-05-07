@@ -42,6 +42,8 @@ function M.parse(arg)
    cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
    cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
    cmd:option('-shortcutType', '',       'Options: A | B | C')
+   cmd:option('-dropMode',     '',       'Options: const | lindecay')
+   cmd:option('-dropRate',     0,        'The dropout rate of the last residual block')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
    ---------- Model options ----------------------------------
