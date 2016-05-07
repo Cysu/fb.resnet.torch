@@ -50,7 +50,7 @@ local function createModel(opt)
       local nInputPlane = iChannels
       iChannels = n
 
-      local s = nn.Sequential()
+      local s = opt.dropMode == '' and nn.Sequential() or nn.SequentialDropout()
       s:add(Convolution(nInputPlane,n,3,3,stride,stride,1,1))
       s:add(SBatchNorm(n))
       s:add(ReLU(true))
@@ -70,7 +70,7 @@ local function createModel(opt)
       local nInputPlane = iChannels
       iChannels = n * 4
 
-      local s = nn.Sequential()
+      local s = opt.dropMode == '' and nn.Sequential() or nn.SequentialDropout()
       s:add(Convolution(nInputPlane,n,1,1,1,1,0,0))
       s:add(SBatchNorm(n))
       s:add(ReLU(true))
@@ -180,6 +180,17 @@ local function createModel(opt)
       model:apply(function(m)
          if m.setMode then m:setMode(1,1,1) end
       end)
+   end
+
+   if opt.dropMode == 'const' then
+      for i,v in ipairs(model:findModules('nn.SequentialDropout')) do
+         v:setp(opt.dropRate)
+      end
+   elseif opt.dropMode == 'lindecay' then
+      local units = model:findModules('nn.SequentialDropout')
+      for i,v in ipairs(units) do
+         v:setp(i * opt.dropRate / #units)
+      end
    end
 
    model:get(1).gradInput = nil

@@ -51,7 +51,7 @@ local function createModel(opt)
       iChannels = n
 
       local block = nn.Sequential()
-      local s = nn.Sequential()
+      local s = opt.dropMode == '' and nn.Sequential() or nn.SequentialDropout()
       if type == 'both_preact' then
          block:add(SBatchNorm(nInputPlane))
          block:add(ReLU(true))
@@ -77,7 +77,7 @@ local function createModel(opt)
       iChannels = n * 4
 
       local block = nn.Sequential()
-      local s = nn.Sequential()
+      local s = opt.dropMode == '' and nn.Sequential() or nn.SequentialDropout()
       if type == 'both_preact' then
          block:add(SBatchNorm(nInputPlane))
          block:add(ReLU(true))
@@ -202,6 +202,17 @@ local function createModel(opt)
       model:apply(function(m)
          if m.setMode then m:setMode(1,1,1) end
       end)
+   end
+
+   if opt.dropMode == 'const' then
+      for i,v in ipairs(model:findModules('nn.SequentialDropout')) do
+         v:setp(opt.dropRate)
+      end
+   elseif opt.dropMode == 'lindecay' then
+      local units = model:findModules('nn.SequentialDropout')
+      for i,v in ipairs(units) do
+         v:setp(i * opt.dropRate / #units)
+      end
    end
 
    model:get(1).gradInput = nil
