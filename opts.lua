@@ -26,7 +26,7 @@ function M.parse(arg)
    ------------- Data options ------------------------
    cmd:option('-nThreads',        2, 'number of data loading threads')
    ------------- Training options --------------------
-   cmd:option('-nEpochs',         0,       'Number of total epochs to run')
+   cmd:option('-nEpochs',         200,       'Number of total epochs to run')
    cmd:option('-epochNumber',     1,       'Manual epoch number (useful on restarts)')
    cmd:option('-batchSize',       32,      'mini-batch size (1 = pure stochastic)')
    cmd:option('-testOnly',        'false', 'Run on validation set only')
@@ -37,11 +37,13 @@ function M.parse(arg)
    cmd:option('-momentum',        0.9,   'momentum')
    cmd:option('-weightDecay',     1e-4,  'weight decay')
    ---------- Model options ----------------------------------
-   cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
-   cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
+   cmd:option('-netType',      'wrn',    'Options: resnet | preresnet | wrn')
+   cmd:option('-depth',        28,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
    cmd:option('-shortcutType', '',       'Options: A | B | C')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
+   cmd:option('-dropout',      0.3,      'Dropout ratio')
+   cmd:option('-widen_factor', 10,       'Widen factor')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
@@ -67,9 +69,9 @@ function M.parse(arg)
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
       opt.nEpochs = opt.nEpochs == 0 and 90 or opt.nEpochs
    elseif opt.dataset == 'cifar10' then
-      -- Default shortcutType=A and nEpochs=164
+      -- Default shortcutType=A and nEpochs=200
       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
+      opt.nEpochs = opt.nEpochs == 0 and 200 or opt.nEpochs
    else
       cmd:error('unknown dataset: ' .. opt.dataset)
    end
