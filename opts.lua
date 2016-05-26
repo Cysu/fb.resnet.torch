@@ -75,7 +75,7 @@ function M.parse(arg)
       end
       -- Default shortcutType=B and nEpochs=90
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 90 or opt.nEpochs
+      opt.nEpochs = opt.nEpochs == 0 and 120 or opt.nEpochs
    elseif opt.dataset == 'cifar10' then
       -- Default shortcutType=A and nEpochs=164
       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
