@@ -47,7 +47,8 @@ local function createModel(opt)
       for i,v in ipairs(conv_params) do
          if i == 1 then
             local module = nInputPlane == nOutputPlane and convs or block
-            module:add(SBatchNorm(nInputPlane)):add(ReLU(true))
+            module:add(ShareGradInput(SBatchNorm(nInputPlane), 'preact'))
+            module:add(ReLU(true))
             convs:add(Convolution(nInputPlane,nBottleneckPlane,table.unpack(v)))
          else
             convs:add(SBatchNorm(nBottleneckPlane)):add(ReLU(true))
@@ -80,7 +81,32 @@ local function createModel(opt)
    end
 
    local model = nn.Sequential()
-   if opt.dataset == 'cifar10' then
+   if opt.dataset == 'imagenet' then
+      local cfg = {
+         [18]  = {2, 2, 2, 2},
+         [34]  = {3, 4, 6, 3}
+      }
+
+      assert(cfg[depth], 'Invalid depth: ' .. tostring(depth))
+      local n = cfg[depth]
+      local k = opt.widen_factor
+      local nStages = torch.Tensor{64, 64*k, 128*k, 256*k, 512*k}
+
+      -- The ResNet ImageNet model
+      model:add(Convolution(3,64,7,7,2,2,3,3))
+      model:add(SBatchNorm(64))
+      model:add(ReLU(true))
+      model:add(Max(3,3,2,2,1,1))
+      model:add(layer(wide_basic, nStages[1], nStages[2], n[1], 1))
+      model:add(layer(wide_basic, nStages[2], nStages[3], n[2], 2))
+      model:add(layer(wide_basic, nStages[3], nStages[4], n[3], 2))
+      model:add(layer(wide_basic, nStages[4], nStages[5], n[4], 2))
+      model:add(ShareGradInput(SBatchNorm(nStages[5]), 'last'))
+      model:add(ReLU(true))
+      model:add(Avg(7, 7, 1, 1))
+      model:add(nn.View(nStages[5]):setNumInputDims(3))
+      model:add(nn.Linear(nStages[5], 1000))
+   elseif opt.dataset == 'cifar10' then
       assert((depth - 4) % 6 == 0, 'depth should be 6n+4')
       local n = (depth - 4) / 6
 
@@ -91,7 +117,7 @@ local function createModel(opt)
       model:add(layer(wide_basic, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
       model:add(layer(wide_basic, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
       model:add(layer(wide_basic, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
-      model:add(SBatchNorm(nStages[4]))
+      model:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
       model:add(ReLU(true))
       model:add(Avg(8, 8, 1, 1))
       model:add(nn.View(nStages[4]):setNumInputDims(3))
