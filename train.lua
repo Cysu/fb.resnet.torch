@@ -41,7 +41,7 @@ function Trainer:train(epoch, dataloader)
    end
 
    local trainSize = dataloader:size()
-   local top1Sum, top5Sum, lossSum = 0.0, 0.0, 0.0
+   local top1Sum, top5Sum, lossSum, superclassSum = 0.0, 0.0, 0.0, 0.0
    local N = 0
 
    print('=> Training epoch # ' .. epoch)
@@ -53,8 +53,7 @@ function Trainer:train(epoch, dataloader)
       -- Copy input and target to the GPU
       self:copyInputs(sample)
 
-      local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1)
+      local output = self.model:forward(self.input)
       local loss = self.criterion:forward(self.model.output, self.target)
 
       self.model:zeroGradParameters()
@@ -63,14 +62,17 @@ function Trainer:train(epoch, dataloader)
 
       optim.sgd(feval, self.params, self.optimState)
 
-      local top1, top5 = self:computeScore(output, sample.target, 1)
+      local batchSize = output[1]:size(1)
+      local top1, top5 = self:computeScore(output[1], sample.target[1], 1)
+      local superclassErr, _ = self:computeScore(output[2], sample.target[2], 1)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       lossSum = lossSum + loss*batchSize
+      superclassSum = superclassSum + superclassErr*batchSize
       N = N + batchSize
 
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
-         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f  superclass %7.3f'):format(
+         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5, superclassErr))
 
       -- check that the storage didn't get changed do to an unfortunate getParameters call
       assert(self.params:storage() == self.model:parameters()[1]:storage())
@@ -79,7 +81,7 @@ function Trainer:train(epoch, dataloader)
       dataTimer:reset()
    end
 
-   return top1Sum / N, top5Sum / N, lossSum / N
+   return top1Sum / N, top5Sum / N, lossSum / N, superclassSum / N
 end
 
 function Trainer:test(epoch, dataloader)
@@ -90,7 +92,7 @@ function Trainer:test(epoch, dataloader)
    local size = dataloader:size()
 
    local nCrops = self.opt.tenCrop and 10 or 1
-   local top1Sum, top5Sum = 0.0, 0.0
+   local top1Sum, top5Sum, superclassSum = 0.0, 0.0, 0.0
    local N = 0
 
    self.model:evaluate()
@@ -100,27 +102,29 @@ function Trainer:test(epoch, dataloader)
       -- Copy input and target to the GPU
       self:copyInputs(sample)
 
-      local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1) / nCrops
+      local output = self.model:forward(self.input)
       local loss = self.criterion:forward(self.model.output, self.target)
 
-      local top1, top5 = self:computeScore(output, sample.target, nCrops)
+      local batchSize = output[1]:size(1) / nCrops
+      local top1, top5 = self:computeScore(output[1], sample.target[1], nCrops)
+      local superclassErr, _ = self:computeScore(output[2], sample.target[2], nCrops)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
+      superclassSum = superclassSum + superclassErr*batchSize
       N = N + batchSize
 
-      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)  superclass %7.3f (%7.3f)'):format(
+         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N, superclassErr, superclassSum / N))
 
       timer:reset()
       dataTimer:reset()
    end
    self.model:training()
 
-   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
-      epoch, top1Sum / N, top5Sum / N))
+   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f  superclass: %7.3f\n'):format(
+      epoch, top1Sum / N, top5Sum / N, superclassSum / N))
 
-   return top1Sum / N, top5Sum / N
+   return top1Sum / N, top5Sum / N, superclassSum / N
 end
 
 function Trainer:computeScore(output, target, nCrops)
@@ -156,10 +160,11 @@ function Trainer:copyInputs(sample)
    self.input = self.input or (self.opt.nGPU == 1
       and torch.CudaTensor()
       or cutorch.createCudaHostTensor())
-   self.target = self.target or torch.CudaTensor()
+   self.target = self.target or {torch.CudaTensor(), torch.CudaTensor()}
 
    self.input:resize(sample.input:size()):copy(sample.input)
-   self.target:resize(sample.target:size()):copy(sample.target)
+   self.target[1]:resize(sample.target[1]:size()):copy(sample.target[1])
+   self.target[2]:resize(sample.target[2]:size()):copy(sample.target[2])
 end
 
 function Trainer:learningRate(epoch)

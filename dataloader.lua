@@ -67,7 +67,7 @@ function DataLoader:run()
             function(indices, nCrops)
                local sz = indices:size(1)
                local batch, imageSize
-               local target = torch.IntTensor(sz)
+               local target = {torch.IntTensor(sz), torch.IntTensor(sz)}
                for i, idx in ipairs(indices:totable()) do
                   local sample = _G.dataset:get(idx)
                   local input = _G.preprocess(sample.input)
@@ -77,7 +77,8 @@ function DataLoader:run()
                      batch = torch.FloatTensor(sz, nCrops, table.unpack(imageSize))
                   end
                   batch[i]:copy(input)
-                  target[i] = sample.target
+                  target[1][i] = sample.target[1]
+                  target[2][i] = sample.target[2]
                end
                collectgarbage()
                return {

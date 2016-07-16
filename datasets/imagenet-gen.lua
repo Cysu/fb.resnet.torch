@@ -35,9 +35,34 @@ local function findClasses(dir)
    return classList, classToIdx
 end
 
-local function findImages(dir, classToIdx)
+local function getSuperclasses(superclassesFile)
+   local csvigo = require 'csvigo'
+   local scTable = csvigo.load{
+      path = superclassesFile,
+      separator = ' ',
+      mode = 'raw'
+   }
+   local classToSuperIdx = {}
+   for i, classes in ipairs(scTable) do
+      for _, class in ipairs(classes) do
+         classToSuperIdx[class] = i
+      end
+   end
+   return classToSuperIdx
+end
+
+local function getIdxMapping(classToIdx, classToSuperIdx)
+   assert(#classToIdx == #classToSuperIdx)
+   local idxToSuperIdx = {}
+   for class, idx in pairs(classToIdx) do
+      assert(classToSuperIdx[class], 'class '..class..' has no superclass')
+      idxToSuperIdx[idx] = classToSuperIdx[class]
+   end
+   return idxToSuperIdx
+end
+
+local function findImages(dir, classToIdx, classToSuperIdx)
    local imagePath = torch.CharTensor()
-   local imageClass = torch.LongTensor()
 
    ----------------------------------------------------------------------
    -- Options for the GNU and BSD find command
@@ -53,6 +78,7 @@ local function findImages(dir, classToIdx)
    local maxLength = -1
    local imagePaths = {}
    local imageClasses = {}
+   local imageSuperclasses = {}
 
    -- Generate a list of all the images and their class
    while true do
@@ -66,8 +92,12 @@ local function findImages(dir, classToIdx)
       local classId = classToIdx[className]
       assert(classId, 'class not found: ' .. className)
 
+      local superclassId = classToSuperIdx[className]
+      assert(superclassId, 'superclass not found: ' .. className)
+
       table.insert(imagePaths, path)
       table.insert(imageClasses, classId)
+      table.insert(imageSuperclasses, superclassId)
 
       maxLength = math.max(maxLength, #path + 1)
    end
@@ -82,13 +112,15 @@ local function findImages(dir, classToIdx)
    end
 
    local imageClass = torch.LongTensor(imageClasses)
-   return imagePath, imageClass
+   local imageSuperclass = torch.LongTensor(imageSuperclasses)
+   return imagePath, imageClass, imageSuperclass
 end
 
 function M.exec(opt, cacheFile)
    -- find the image path names
    local imagePath = torch.CharTensor()  -- path to each image in dataset
    local imageClass = torch.LongTensor() -- class index of each image (class index in self.classes)
+   local imageSuperclass = torch.LongTensor() -- superclass index of each image
 
    local trainDir = paths.concat(opt.data, 'train')
    local valDir = paths.concat(opt.data, 'val')
@@ -97,23 +129,28 @@ function M.exec(opt, cacheFile)
 
    print("=> Generating list of images")
    local classList, classToIdx = findClasses(trainDir)
+   local classToSuperIdx = getSuperclasses(opt.superclasses)
+   local idxToSuperIdx = getIdxMapping(classToIdx, classToSuperIdx)
 
    print(" | finding all validation images")
-   local valImagePath, valImageClass = findImages(valDir, classToIdx)
+   local valImagePath, valImageClass, valImageSuperclass = findImages(valDir, classToIdx, classToSuperIdx)
 
    print(" | finding all training images")
-   local trainImagePath, trainImageClass = findImages(trainDir, classToIdx)
+   local trainImagePath, trainImageClass, trainImageSuperclass = findImages(trainDir, classToIdx, classToSuperIdx)
 
    local info = {
       basedir = opt.data,
       classList = classList,
+      idxToSuperIdx = idxToSuperIdx,
       train = {
          imagePath = trainImagePath,
          imageClass = trainImageClass,
+         imageSuperclass = trainImageSuperclass,
       },
       val = {
          imagePath = valImagePath,
          imageClass = valImageClass,
+         imageSuperclass = valImageSuperclass,
       },
    }
 

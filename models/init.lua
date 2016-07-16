@@ -13,6 +13,7 @@
 require 'nn'
 require 'cunn'
 require 'cudnn'
+require 'models/SuperclassAvePooling'
 
 local M = {}
 
@@ -31,6 +32,13 @@ function M.setup(opt, checkpoint)
       print('=> Creating model from file: models/' .. opt.netType .. '.lua')
       model = require('models/' .. opt.netType)(opt)
    end
+
+   -- Superclass classification
+   local imageInfo = torch.load(paths.concat(opt.gen, opt.dataset .. '.t7'))
+   model:add(nn.ConcatTable()
+             :add(nn.Identity())
+             :add(nn.SuperclassAvePooling(imageInfo.idxToSuperIdx)))
+   model:cuda()
 
    -- First remove any DataParallelTable
    if torch.type(model) == 'nn.DataParallelTable' then
@@ -78,6 +86,7 @@ function M.setup(opt, checkpoint)
          :add(model, gpus)
          :threads(function()
             local cudnn = require 'cudnn'
+            require 'models/SuperclassAvePooling'
             cudnn.fastest, cudnn.benchmark = fastest, benchmark
          end)
       dpt.gradInput = nil
@@ -85,7 +94,11 @@ function M.setup(opt, checkpoint)
       model = dpt:cuda()
    end
 
-   local criterion = nn.CrossEntropyCriterion():cuda()
+   -- Criterions of hierarchical classification
+   local criterion = nn.ParallelCriterion()
+      :add(nn.CrossEntropyCriterion(), 0.5)
+      :add(nn.CrossEntropyCriterion(), 0.5)
+      :cuda()
    return model, criterion
 end
 

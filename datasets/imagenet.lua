@@ -30,10 +30,11 @@ function ImagenetDataset:get(i)
 
    local image = self:_loadImage(paths.concat(self.dir, path))
    local class = self.imageInfo.imageClass[i]
+   local superclass = self.imageInfo.imageSuperclass[i]
 
    return {
       input = image,
-      target = class,
+      target = {class, superclass},
    }
 end
 
