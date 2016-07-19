@@ -28,7 +28,7 @@ function M.parse(arg)
    ------------- Training options --------------------
    cmd:option('-nEpochs',         200,       'Number of total epochs to run')
    cmd:option('-epochNumber',     1,       'Manual epoch number (useful on restarts)')
-   cmd:option('-batchSize',       32,      'mini-batch size (1 = pure stochastic)')
+   cmd:option('-batchSize',       128,      'mini-batch size (1 = pure stochastic)')
    cmd:option('-testOnly',        'false', 'Run on validation set only')
    cmd:option('-tenCrop',         'false', 'Ten-crop testing')
    ------------- Checkpointing options ---------------
@@ -37,7 +37,7 @@ function M.parse(arg)
    ---------- Optimization options ----------------------
    cmd:option('-LR',                 0.1,     'initial learning rate')
    cmd:option('-momentum',           0.9,     'momentum')
-   cmd:option('-weightDecay',        1e-4,    'weight decay')
+   cmd:option('-weightDecay',        5e-4,    'weight decay')
    cmd:option('-recomputeBatchNorm', 'false', 'recompute batch norm statistics')
    ---------- Model options ----------------------------------
    cmd:option('-netType',      'wrn',    'Options: resnet | preresnet | wrn')
@@ -47,7 +47,7 @@ function M.parse(arg)
    cmd:option('-dropRate',     0,        'The dropout rate of the last residual block')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
-   cmd:option('-dropout',      0.3,      'Dropout ratio')
+   cmd:option('-dropout',      0,      'Dropout ratio')
    cmd:option('-widen_factor', 10,       'Widen factor')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
