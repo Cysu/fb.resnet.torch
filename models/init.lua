@@ -78,6 +78,7 @@ function M.setup(opt, checkpoint)
          :add(model, gpus)
          :threads(function()
             local cudnn = require 'cudnn'
+            require 'nngraph'
             cudnn.fastest, cudnn.benchmark = fastest, benchmark
          end)
       dpt.gradInput = nil
@@ -85,7 +86,10 @@ function M.setup(opt, checkpoint)
       model = dpt:cuda()
    end
 
-   local criterion = nn.CrossEntropyCriterion():cuda()
+   local criterion = nn.ParallelCriterion()
+      :add(nn.CrossEntropyCriterion(), 0.5)
+      :add(nn.CrossEntropyCriterion(), 0.5)
+      :cuda()
    return model, criterion
 end
 

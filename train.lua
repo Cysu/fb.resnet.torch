@@ -53,17 +53,17 @@ function Trainer:train(epoch, dataloader)
       -- Copy input and target to the GPU
       self:copyInputs(sample)
 
-      local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1)
-      local loss = self.criterion:forward(self.model.output, self.target)
+      local output = self.model:forward(self.input)
+      local batchSize = output[1]:size(1)
+      local loss = self.criterion:forward(self.model.output, {self.target, self.target})
 
       self.model:zeroGradParameters()
-      self.criterion:backward(self.model.output, self.target)
+      self.criterion:backward(self.model.output, {self.target, self.target})
       self.model:backward(self.input, self.criterion.gradInput)
 
       optim.sgd(feval, self.params, self.optimState)
 
-      local top1, top5 = self:computeScore(output, sample.target, 1)
+      local top1, top5 = self:computeScore(output[2], sample.target, 1)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       lossSum = lossSum + loss*batchSize
@@ -100,11 +100,11 @@ function Trainer:test(epoch, dataloader)
       -- Copy input and target to the GPU
       self:copyInputs(sample)
 
-      local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1) / nCrops
-      local loss = self.criterion:forward(self.model.output, self.target)
+      local output = self.model:forward(self.input)
+      local batchSize = output[1]:size(1) / nCrops
+      local loss = self.criterion:forward(self.model.output, {self.target, self.target})
 
-      local top1, top5 = self:computeScore(output, sample.target, nCrops)
+      local top1, top5 = self:computeScore(output[2], sample.target, nCrops)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       N = N + batchSize
