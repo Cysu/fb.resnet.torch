@@ -18,6 +18,7 @@ local Avg = cudnn.SpatialAveragePooling
 local ReLU = cudnn.ReLU
 local Max = nn.SpatialMaxPooling
 local SBatchNorm = nn.SpatialBatchNormalization
+local DilatedConv = nn.SpatialDilatedConvolution
 
 local function createModel(opt)
    local depth = opt.depth
@@ -69,6 +70,53 @@ local function createModel(opt)
             :add(shortcut))
          :add(nn.CAddTable(true))
    end
+
+   -- TBD
+   -- wide_basic_dilated
+   local function wide_basic_dilated(nInputPlane, nOutputPlane, stride)
+      local conv_params = {
+         {3,3,stride,stride,1,1},
+         {3,3,1,1,1,1},
+      }
+      local nBottleneckPlane = nOutputPlane
+      local nHalfBottleneckPlane = nBottleneckPlane / 2 
+
+      local block = nn.Sequential()
+      local convs = nn.Sequential()
+
+      for i,v in ipairs(conv_params) do
+         if i == 1 then
+            local module = nInputPlane == nOutputPlane and convs or block
+            module:add(ShareGradInput(SBatchNorm(nInputPlane), 'preact'))
+            module:add(ReLU(true))
+            local concat1 = nn.Concat(2)
+            concat1:add(Convolution(nInputPlane,nHalfBottleneckPlane,table.unpack(v))) 
+            concat1:add(DilatedConv(nInputPlane,nHalfBottleneckPlane,3,3,stride,stride,opt.nDilation,opt.nDilation,opt.nDilation,opt.nDilation))
+
+            convs:add(concat1)
+         else
+            convs:add(SBatchNorm(nBottleneckPlane)):add(ReLU(true))
+            if opt.dropout > 0 then
+               convs:add(nn.Dropout(opt and opt.dropout or 0,nil,true))
+            end
+            local concat2 = nn.Concat(2)
+            concat2:add(Convolution(nBottleneckPlane,nHalfBottleneckPlane,table.unpack(v)))
+            concat2:add(DilatedConv(nBottleneckPlane,nHalfBottleneckPlane,3,3,1,1,opt.nDilation,opt.nDilation,opt.nDilation,opt.nDilation))
+            convs:add(concat2)
+         end
+      end
+
+      local shortcut = nInputPlane == nOutputPlane and
+         nn.Identity() or
+         Convolution(nInputPlane,nOutputPlane,1,1,stride,stride,0,0)
+
+      return block
+         :add(nn.ConcatTable()
+            :add(convs)
+            :add(shortcut))
+         :add(nn.CAddTable(true))
+   end
+   --
 
    -- Stacking Residual Units on the same stage
    local function layer(block, nInputPlane, nOutputPlane, count, stride)
@@ -138,6 +186,26 @@ local function createModel(opt)
          end
       end
    end
+   -- TBD
+   -- Dilated Convolution Init
+   local function DiConvInit(name)
+      for k,v in pairs(model:findModules(name)) do
+         v.bias:zero() 
+         local n = v.kW*v.kH*v.nOutputPlane
+         v.weight:normal(0,math.sqrt(2/n))
+         local nInp = v.nInputPlane
+         local nOut = v.nOutputPlane
+         for i = 1, nInp < nOut and nInp or nOut do
+            v.weight[i][i][2][2] = 1
+         end
+         if nInp < nOut then
+            for i = nInp + 1, nOut do
+               v.weight[i][torch.random() % nInp + 1][2][2] = 1
+            end
+         end
+      end
+   end
+   --
    local function BNInit(name)
       for k,v in pairs(model:findModules(name)) do
          v.weight:fill(1)
@@ -150,10 +218,19 @@ local function createModel(opt)
    BNInit('fbnn.SpatialBatchNormalization')
    BNInit('cudnn.SpatialBatchNormalization')
    BNInit('nn.SpatialBatchNormalization')
+   -- TBD
+   -- Dilated Init
+   DiConvInit('nn.SpatialDilatedConvolution')
+   --
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
    end
-   model:cuda()
+   
+   -- DEBUG
+   -- print(model)
+   -- os.exit(0)
+   -- It seems that this statement is of no use. 
+   -- model:cuda()
 
    if opt.cudnn == 'deterministic' then
       model:apply(function(m)
