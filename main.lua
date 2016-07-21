@@ -42,24 +42,24 @@ if opt.testOnly then
 end
 
 local startEpoch = checkpoint and checkpoint.epoch + 1 or opt.epochNumber
-local bestTop1 = math.huge
-local bestTop5 = math.huge
+local bestFirstTop1 = math.huge
+local bestSecondTop1 = math.huge
 for epoch = startEpoch, opt.nEpochs do
    -- Train for a single epoch
-   local trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
+   local trainFirstTop1, trainSecondTop1, trainLoss = trainer:train(epoch, trainLoader)
 
    -- Run model on validation set
-   local testTop1, testTop5 = trainer:test(epoch, valLoader)
+   local testFirstTop1, testSecondTop1 = trainer:test(epoch, valLoader)
 
    local bestModel = false
-   if testTop1 < bestTop1 then
+   if testSecondTop1 < bestSecondTop1 then
       bestModel = true
-      bestTop1 = testTop1
-      bestTop5 = testTop5
-      print(' * Best model ', testTop1, testTop5)
+      bestFirstTop1 = testFirstTop1
+      bestSecondTop1 = testSecondTop1
+      print(' * Best model ', testFirstTop1, testSecondTop1)
    end
 
    checkpoints.save(epoch, model, trainer.optimState, bestModel, opt)
 end
 
-print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))
+print(string.format(' * Finished first top1: %6.3f  second top1: %6.3f', bestFirstTop1, bestSecondTop1))
