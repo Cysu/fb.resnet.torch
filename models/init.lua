@@ -87,8 +87,8 @@ function M.setup(opt, checkpoint)
    end
 
    local criterion = nn.ParallelCriterion()
-      :add(nn.CrossEntropyCriterion(), 0.5)
-      :add(nn.CrossEntropyCriterion(), 0.5)
+      :add(nn.CrossEntropyCriterion(), 1.0)
+      :add(nn.CrossEntropyCriterion(), 1.0)
       :cuda()
    return model, criterion
 end

@@ -141,8 +141,7 @@ local function createModel(opt)
       res3 = layer(wide_basic, nStages[3], nStages[4], n, 2)(res2) -- Stage 3 (spatial size: 8x8)
       local score2 = score(nStages[4], 8, 10)(res3)
       -- Combine scores
-      local final = nn.CAddTable(){nn.CMul(10)(score1), score2}
-      outputs = {score1, final}
+      outputs = {score1, score2}
    else
       error('invalid dataset: ' .. opt.dataset)
    end
