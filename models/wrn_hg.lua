@@ -108,13 +108,11 @@ local function createModel(opt)
       return s
    end
 
-   local function upadd(top, bottom, nTopPlane, nBottomPlane)
+   local function upadd(top, bottom)
       -- Up sampling the top
       local a = ShareGradInput(nn.SpatialUpSamplingNearest(2), 'upadd')(top)
-      -- Transform the bottom with three 1x1 conv
-      local b = conv1x1s(nBottomPlane, nTopPlane)(bottom)
       -- Add
-      return nn.CAddTable(){a, b}
+      return nn.CAddTable(){a, bottom}
    end
 
 
@@ -132,12 +130,13 @@ local function createModel(opt)
       local res2 = layer(wide_basic, nStages[2], nStages[3], n, 2)(res1) -- Stage 2 (spatial size: 16x16)
       local res3 = layer(wide_basic, nStages[3], nStages[4], n, 2)(res2) -- Stage 3 (spatial size: 8x8)
       local score1 = score(nStages[4], 8, 10)(res3)
-      local up1 = upadd(res3, res2, nStages[4], nStages[3])
-      local up2 = upadd(up1, res1, nStages[4], nStages[2])
+      -- Up and add
+      res3 = layer(wide_basic, nStages[4], nStages[3], n, 1)(res3)
+      local up = upadd(res3, res2)
+      up = layer(wide_basic, nStages[3], nStages[2], n, 1)(up)
+      up = upadd(up, res1)
       -- Second half-hourglass
-      local second_input = conv1x1s(nStages[4], nStages[1])(up2)
-      res1 = layer(wide_basic, nStages[1], nStages[2], n, 1)(second_input) -- Stage 1 (spatial size: 32x32)
-      res2 = layer(wide_basic, nStages[2], nStages[3], n, 2)(res1) -- Stage 2 (spatial size: 16x16)
+      res2 = layer(wide_basic, nStages[2], nStages[3], n, 2)(up) -- Stage 2 (spatial size: 16x16)
       res3 = layer(wide_basic, nStages[3], nStages[4], n, 2)(res2) -- Stage 3 (spatial size: 8x8)
       local score2 = score(nStages[4], 8, 10)(res3)
       -- Combine scores
