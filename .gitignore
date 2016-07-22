@@ -1,7 +1,7 @@
 gen/
 libnccl.so
 model_best.t7
-checkpoints
+checkpoints/
 pretrained/*.t7
 *log*
 *.swp
