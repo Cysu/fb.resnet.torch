@@ -162,9 +162,10 @@ local function createModel(opt)
       local nStages = torch.Tensor{16, 16*k, 32*k, 64*k}
 
       model:add(Convolution(3,nStages[1],3,3,1,1,1,1)) -- one conv at the beginning (spatial size: 32x32)
-      model:add(layer(wide_basic, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
-      model:add(layer(wide_basic, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
-      model:add(layer(wide_basic, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
+      local block = opt.nDilation == 1 and wide_basic or wide_basic_dilated
+      model:add(layer(block, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
+      model:add(layer(block, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
+      model:add(layer(block, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
       model:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
       model:add(ReLU(true))
       model:add(Avg(8, 8, 1, 1))
