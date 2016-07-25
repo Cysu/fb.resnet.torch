@@ -31,14 +31,13 @@ function M.setup(opt, checkpoint)
    else
       print('=> Creating model from file: models/' .. opt.netType .. '.lua')
       model = require('models/' .. opt.netType)(opt)
+      -- Superclass classification
+      local imageInfo = torch.load(paths.concat(opt.gen, opt.dataset .. '.t7'))
+      model:add(nn.ConcatTable()
+                :add(nn.Identity())
+                :add(nn.SuperclassAvePooling(imageInfo.idxToSuperIdx)))
+      model:cuda()
    end
-
-   -- Superclass classification
-   local imageInfo = torch.load(paths.concat(opt.gen, opt.dataset .. '.t7'))
-   model:add(nn.ConcatTable()
-             :add(nn.Identity())
-             :add(nn.SuperclassAvePooling(imageInfo.idxToSuperIdx)))
-   model:cuda()
 
    -- First remove any DataParallelTable
    if torch.type(model) == 'nn.DataParallelTable' then
