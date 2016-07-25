@@ -11,6 +11,7 @@
 
 local nn = require 'nn'
 require 'cunn'
+require 'models/SequentialDropout'
 
 local Convolution = cudnn.SpatialConvolution
 local Avg = cudnn.SpatialAveragePooling
