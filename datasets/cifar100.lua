@@ -7,24 +7,21 @@
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
 
-------------
--- This file is downloading and transforming CIFAR-100.
--- It is based on cifar10.lua
--- Ludovic Trottier
-------------
+--  CIFAR-100 dataset loader
+--
 
 local t = require 'datasets/transforms'
 
 local M = {}
-local CifarDataset = torch.class('resnet.CifarDataset', M)
+local Cifar100Dataset = torch.class('resnet.Cifar100Dataset', M)
 
-function CifarDataset:__init(imageInfo, opt, split)
+function Cifar100Dataset:__init(imageInfo, opt, split)
    assert(imageInfo[split], split)
    self.imageInfo = imageInfo[split]
    self.split = split
 end
 
-function CifarDataset:get(i)
+function Cifar100Dataset:get(i)
    local image = self.imageInfo.data[i]:float()
    local label = self.imageInfo.labels[i]
 
@@ -34,24 +31,17 @@ function CifarDataset:get(i)
    }
 end
 
-function CifarDataset:size()
+function Cifar100Dataset:size()
    return self.imageInfo.data:size(1)
 end
 
-
--- Computed from entire CIFAR-100 training set with this code:
---      dataset = torch.load('cifar100.t7')
---      tt = dataset.train.data:double();
---      tt = tt:transpose(2,4);
---      tt = tt:reshape(50000*32*32, 3);
---      tt:mean(1)
---      tt:std(1)
+-- Computed from entire CIFAR-100 training set
 local meanstd = {
    mean = {129.3, 124.1, 112.4},
    std  = {68.2,  65.4,  70.4},
 }
 
-function CifarDataset:preprocess()
+function Cifar100Dataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
          t.ColorNormalize(meanstd),
@@ -65,4 +55,4 @@ function CifarDataset:preprocess()
    end
 end
 
-return M.CifarDataset
+return M.Cifar100Dataset
