@@ -167,7 +167,7 @@ function Trainer:learningRate(epoch)
    local decay = 0
    if self.opt.dataset == 'imagenet' then
       decay = math.floor((epoch - 1) / 30)
-   elseif self.opt.dataset == 'cifar10' then
+   elseif self.opt.dataset == 'cifar10' or self.opt.dataset == 'cifar100' then
       decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
    end
    return self.opt.LR * math.pow(0.1, decay)
