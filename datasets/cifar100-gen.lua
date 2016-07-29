@@ -1,4 +1,4 @@
-local URL = 'https://www.cs.toronto.edu/~kriz/cifar-100-binary.tar.gz'
+local URL = 'http://www.cs.toronto.edu/~kriz/cifar-100-binary.tar.gz'
 
 local M = {}
 
