@@ -154,7 +154,7 @@ local function createModel(opt)
       model:add(Avg(7, 7, 1, 1))
       model:add(nn.View(nStages[5]):setNumInputDims(3))
       model:add(nn.Linear(nStages[5], 1000))
-   elseif opt.dataset == 'cifar10' then
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
       assert((depth - 4) % 6 == 0, 'depth should be 6n+4')
       local n = (depth - 4) / 6
 
@@ -170,7 +170,8 @@ local function createModel(opt)
       model:add(ReLU(true))
       model:add(Avg(8, 8, 1, 1))
       model:add(nn.View(nStages[4]):setNumInputDims(3))
-      model:add(nn.Linear(nStages[4], 10))
+      local nClasses = opt.dataset == 'cifar10' and 10 or 100
+      model:add(nn.Linear(nStages[4], nClasses))
    else
       error('invalid dataset: ' .. opt.dataset)
    end
