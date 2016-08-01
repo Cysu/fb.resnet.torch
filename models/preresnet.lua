@@ -125,6 +125,40 @@ local function createModel(opt)
       return s
    end
 
+   -- RCN-Regional Convolutional Network
+   local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
+      local s = nn.Sequential()
+      local length = 4
+      local table = nn.ConcatTable()
+      local len3 = math.ceil(w / multiFactor)
+      local len4 = math.ceil(h / multiFactor)
+      -- build the n-part layer
+      for i = 0, multiFactor - 1 do
+         for j = 0, multiFactor - 1 do
+            local part = nn.Sequential()
+            local offset3 = math.floor(i * w / multiFactor) + 1
+            if offset3 + len3 > w + 1 then
+               offset3 = w - len3 + 1
+            end
+            local offset4 = math.floor(j * h / multiFactor) + 1
+            if offset4 + len4 > h + 1 then
+               offset4 = w - len4 + 1
+            end
+            part:add(nn.Narrow(3, offset3, len3))
+            part:add(nn.Narrow(4, offset4, len4))
+            -- 1x1 Convolution
+            part:add(Convolution(nInputPlane, nOutputPlane, 1, 1))
+            part:add(Avg(len3, len4, 1, 1))
+            table:add(part)
+         end
+      end
+
+      s:add(table)
+      s:add(nn.CAddTable())
+      s:add(nn.View(nOutputPlane):setNumInputDims(3))
+      return s
+   end
+
    local model = nn.Sequential()
    if opt.dataset == 'imagenet' then
       -- Configurations for ResNet:

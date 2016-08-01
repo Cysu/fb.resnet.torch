@@ -18,6 +18,7 @@ local Avg = cudnn.SpatialAveragePooling
 local ReLU = cudnn.ReLU
 local Max = nn.SpatialMaxPooling
 local SBatchNorm = nn.SpatialBatchNormalization
+local BatchNorm = nn.BatchNormalization
 local DilatedConv = nn.SpatialDilatedConvolution
 
 local function createModel(opt)
@@ -71,7 +72,6 @@ local function createModel(opt)
          :add(nn.CAddTable(true))
    end
 
-   -- TBD
    -- wide_basic_dilated
    local function wide_basic_dilated(nInputPlane, nOutputPlane, stride)
       local conv_params = {
@@ -125,6 +125,50 @@ local function createModel(opt)
       for i=2,count do
          s:add(block(nOutputPlane, nOutputPlane, 1))
       end
+      return s
+   end
+
+   -- Multi Pose-subclass Layer
+   local function multiclass(nInputPlane, nOutputPlane)
+      local s = nn.Sequential()
+      s:add(nn.Dropout(0.1))
+      local tableOut = nn.Concat(2) 
+      for i = 1, nOutputPlane do
+         local unit = nn.Sequential()
+         unit:add(nn.Linear(nInputPlane, opt.multiFactor))
+         unit:add(ShareGradInput(BatchNorm(opt.multiFactor), 'multi'))
+         unit:add(ReLU(true))
+         unit:add(nn.Linear(opt.multiFactor, 1))
+         tableOut:add(unit)
+      end
+      s:add(tableOut)
+      return s
+   end
+
+   -- RCN-Regional Convolutional Network
+   local function rcn(nInputPlane, nOutputPlane)
+      local s = nn.Sequential()
+      local length = 4 
+      local table = nn.ConcatTable()
+      -- build the 4-part layer
+      for i = 1, 2 do
+         for j = 1, 2 do
+            local part = nn.Sequential()
+            local offset3 = (i - 1) * length + 1
+            local offset4 = (j - 1) * length + 1
+            part:add(nn.Narrow(3, offset3, length))
+            part:add(nn.Narrow(4, offset4, length))
+            -- 1x1 Convolution
+            part:add(Convolution(nInputPlane, nOutputPlane, 1, 1))
+            part:add(Avg(length, length, 1, 1))
+            table:add(part)
+         end
+      end
+
+      s:add(table) 
+      s:add(nn.CAddTable())
+      s:add(nn.View(nOutputPlane):setNumInputDims(3))
+      -- s:add(unit)
       return s
    end
 
@@ -188,7 +232,6 @@ local function createModel(opt)
          end
       end
    end
-   -- TBD
    -- Dilated Convolution Init
    local function DiConvInit(name)
       for k,v in pairs(model:findModules(name)) do
@@ -220,19 +263,12 @@ local function createModel(opt)
    BNInit('fbnn.SpatialBatchNormalization')
    BNInit('cudnn.SpatialBatchNormalization')
    BNInit('nn.SpatialBatchNormalization')
-   -- TBD
-   -- Dilated Init
    DiConvInit('nn.SpatialDilatedConvolution')
-   --
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
    end
    
-   -- DEBUG
-   -- print(model)
-   -- os.exit(0)
-   -- It seems that this statement is of no use. 
-   -- model:cuda()
+   model:cuda()
 
    if opt.cudnn == 'deterministic' then
       model:apply(function(m)
