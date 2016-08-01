@@ -69,6 +69,7 @@ function Trainer:train(epoch, dataloader)
       lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
+      -- Commented for log
       print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
          epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
 
@@ -109,6 +110,7 @@ function Trainer:test(epoch, dataloader)
       top5Sum = top5Sum + top5*batchSize
       N = N + batchSize
 
+      -- Commented for log.
       print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
          epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
 
@@ -169,9 +171,10 @@ function Trainer:learningRate(epoch)
    if self.opt.dataset == 'imagenet' then
       decay = math.floor((epoch - 1) / 30)
    elseif self.opt.dataset == 'cifar10' then
-      decay = epoch >= 160 and 3 or epoch >= 120 and 2 or epoch >= 60 and 1 or 0
+      decay = epoch >= 160 and 3 or epoch >= 120 and 2 or epoch >= 60 and 1 or 0 
       ratio = 0.2
    end
+   -- new LR policy
    return self.opt.LR * math.pow(ratio, decay)
 end
 
