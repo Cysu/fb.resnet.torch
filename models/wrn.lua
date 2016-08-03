@@ -203,7 +203,10 @@ local function createModel(opt)
       else
          model:add(rcn(nStages[5], 1000))
       end
-   elseif opt.dataset == 'cifar10' then
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
+      model:add(Avg(7, 7, 1, 1))
+      model:add(nn.View(nStages[5]):setNumInputDims(3))
+      model:add(nn.Linear(nStages[5], 1000))
       assert((depth - 4) % 6 == 0, 'depth should be 6n+4')
       local n = (depth - 4) / 6
 
@@ -219,13 +222,16 @@ local function createModel(opt)
       model:add(ReLU(true))
 
       -- Multi pose subclass
+      local nClasses = opt.dataset == 'cifar10' and 10 or 100
       if opt.multiFactor > 1 then 
-         model:add(rcn(nStages[4], 10))
+         model:add(rcn(nStages[4], nClasses))
       else
          model:add(Avg(8, 8, 1, 1))
          model:add(nn.View(nStages[4]):setNumInputDims(3))
-         model:add(nn.Linear(nStages[4], 10))
+         model:add(nn.Linear(nStages[4], nClasses))
       end
+      model:add(Avg(8, 8, 1, 1))
+      model:add(nn.View(nStages[4]):setNumInputDims(3))
    else
       error('invalid dataset: ' .. opt.dataset)
    end

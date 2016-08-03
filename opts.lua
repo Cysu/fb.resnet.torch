@@ -17,7 +17,7 @@ function M.parse(arg)
    cmd:text('Options:')
     ------------ General options --------------------
    cmd:option('-data',       '',         'Path to dataset')
-   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10')
+   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10 | cifar100')
    cmd:option('-manualSeed', 0,          'Manually set RNG seed')
    cmd:option('-nGPU',       1,          'Number of GPUs to use by default')
    cmd:option('-startGPU',   1,          'The number of the start point of GPU groups.')
@@ -49,6 +49,7 @@ function M.parse(arg)
    cmd:option('-widen_factor', 10,       'Widen factor')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
+   cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
    cmd:option('-nDilation', 1, 'Number of pixels to skip in the Dilated Convolution')
@@ -60,6 +61,7 @@ function M.parse(arg)
    opt.testOnly = opt.testOnly ~= 'false'
    opt.tenCrop = opt.tenCrop ~= 'false'
    opt.shareGradInput = opt.shareGradInput ~= 'false'
+   opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
@@ -77,7 +79,7 @@ function M.parse(arg)
       -- Default shortcutType=B and nEpochs=90
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
       opt.nEpochs = opt.nEpochs == 0 and 90 or opt.nEpochs
-   elseif opt.dataset == 'cifar10' then
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
       -- Default shortcutType=A and nEpochs=200
       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
       opt.nEpochs = opt.nEpochs == 0 and 200 or opt.nEpochs
@@ -89,6 +91,10 @@ function M.parse(arg)
       if opt.nClasses == 0 then
          cmd:error('-nClasses required when resetClassifier is set')
       end
+   end
+
+   if opt.shareGradInput and opt.optnet then
+      cmd:error('error: cannot use both -shareGradInput and -optnet')
    end
 
    return opt
