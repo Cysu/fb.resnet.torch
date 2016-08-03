@@ -51,6 +51,7 @@ function M.parse(arg)
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
+   cmd:option('-nPoly', 1, 'Number of poly branches in residual')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
