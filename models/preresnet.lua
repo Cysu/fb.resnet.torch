@@ -127,7 +127,6 @@ local function createModel(opt)
    -- RCN-Regional Convolutional Network
    local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
       local s = nn.Sequential()
-      local length = 4
       local table = nn.ConcatTable()
       local len3 = math.ceil(w / multiFactor)
       local len4 = math.ceil(h / multiFactor)
@@ -147,7 +146,7 @@ local function createModel(opt)
             part:add(nn.Narrow(4, offset4, len4))
             -- 1x1 Convolution
             part:add(Convolution(nInputPlane, nOutputPlane, 1, 1))
-            part:add(Avg(len3, len4, 1, 1))
+            part:add(Max(len3, len4, 1, 1))
             table:add(part)
          end
       end
@@ -187,7 +186,7 @@ local function createModel(opt)
       model:add(layer(block, 512, def[4], 2))
       model:add(ShareGradInput(SBatchNorm(iChannels), 'last'))
       model:add(ReLU(true))
-      if opt.widen_factor == 1 then
+      if opt.multiFactor == 1 then
          model:add(Avg(7, 7, 1, 1))
          model:add(nn.View(nFeatures):setNumInputDims(3))
          model:add(nn.Linear(nFeatures, 1000))
@@ -218,7 +217,11 @@ local function createModel(opt)
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
          local n = v.kW*v.kH*v.nOutputPlane
-         v.weight:normal(0,math.sqrt(2/n))
+         if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
+            v.weight:normal(0,math.sqrt(2/n))
+         else
+            v.weight:normal(0,0.001)
+         end
          if cudnn.version >= 4000 then
             v.bias = nil
             v.gradBias = nil
@@ -241,6 +244,9 @@ local function createModel(opt)
    BNInit('nn.SpatialBatchNormalization')
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
+      if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
+         v.weight:normal(0,0.001)
+      end
    end
    model:cuda()
 
