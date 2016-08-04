@@ -5,3 +5,5 @@ checkpoints/
 pretrained/*.t7
 *log*
 *.swp
+pretrained/*.t7
+*visual*

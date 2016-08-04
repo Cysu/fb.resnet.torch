@@ -27,6 +27,7 @@ function Trainer:__init(model, criterion, opt, optimState)
    }
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
+   self.logFile = opt.logFile
 end
 
 function Trainer:train(epoch, dataloader)
@@ -47,6 +48,7 @@ function Trainer:train(epoch, dataloader)
    print('=> Training epoch # ' .. epoch)
    -- set the batch norm to training mode
    self.model:training()
+   
    for n, sample in dataloader:run() do
       local dataTime = dataTimer:time().real
       totalDataTime = totalDataTime + dataTime
@@ -72,8 +74,13 @@ function Trainer:train(epoch, dataloader)
 
       local time = timer:time().real
       totalTime = totalTime + time
-      print((' | Epoch: [%d][%d/%d]    Time %.3f (%.3f)  Data %.3f (%.3f)  Err %1.4f (%1.4f)  top1 %7.3f (%.3f)  top5 %7.3f (%6.3f)'):format(
-         epoch, n, trainSize, time, totalTime / N, dataTime, totalDataTime / N, loss, lossSum / N, top1, top1Sum / N, top5, top5Sum / N))
+      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
+         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      if self.logFile and n == trainSize then
+         self.logFile:write((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
+            epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5) .. '\n')
+         self.logFile:flush()
+      end
 
       -- check that the storage didn't get changed do to an unfortunate getParameters call
       assert(self.params:storage() == self.model:parameters()[1]:storage())
@@ -113,8 +120,8 @@ function Trainer:test(epoch, dataloader)
       N = N + batchSize
 
       -- Commented for log.
-      -- print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-      --    epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
 
       timer:reset()
       dataTimer:reset()
@@ -123,6 +130,12 @@ function Trainer:test(epoch, dataloader)
 
    print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
       epoch, top1Sum / N, top5Sum / N))
+
+   if self.logFile then
+      self.logFile:write((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
+         epoch, top1Sum / N, top5Sum / N) .. '\n')
+      self.logFile:flush()
+   end
 
    return top1Sum / N, top5Sum / N
 end
