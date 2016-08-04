@@ -148,6 +148,11 @@ local function createModel(opt)
    -- RCN-Regional Convolutional Network
    local function rcn(nInputPlane, nOutputPlane)
       local s = nn.Sequential()
+      -- reduce dimension
+      local nMiddle = nInputPlane / 2 
+      s:add(Convolution(nInputPlane, nMiddle, 1, 1))
+      s:add(ReLU(true))
+
       local length = 4 
       local table = nn.ConcatTable()
       -- build the 4-part layer
@@ -159,7 +164,7 @@ local function createModel(opt)
             part:add(nn.Narrow(3, offset3, length))
             part:add(nn.Narrow(4, offset4, length))
             -- 1x1 Convolution
-            part:add(Convolution(nInputPlane, nOutputPlane, 1, 1))
+            part:add(Convolution(nMiddle, nOutputPlane, 1, 1))
             part:add(Max(length, length, 1, 1))
             table:add(part)
          end
@@ -204,9 +209,6 @@ local function createModel(opt)
          model:add(rcn(nStages[5], 1000))
       end
    elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
-      model:add(Avg(7, 7, 1, 1))
-      model:add(nn.View(nStages[5]):setNumInputDims(3))
-      model:add(nn.Linear(nStages[5], 1000))
       assert((depth - 4) % 6 == 0, 'depth should be 6n+4')
       local n = (depth - 4) / 6
 
@@ -230,8 +232,6 @@ local function createModel(opt)
          model:add(nn.View(nStages[4]):setNumInputDims(3))
          model:add(nn.Linear(nStages[4], nClasses))
       end
-      model:add(Avg(8, 8, 1, 1))
-      model:add(nn.View(nStages[4]):setNumInputDims(3))
    else
       error('invalid dataset: ' .. opt.dataset)
    end
@@ -239,10 +239,10 @@ local function createModel(opt)
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
          local n = v.kW*v.kH*v.nOutputPlane
-         if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
-            v.weight:normal(0,math.sqrt(2/n))
+         if v.nOutputPlane == 10 or v.nOutputPlane == 1000 or (v.nInputPlane == 320 and v.nOutputPlane == 160) or (v.nInputPlane == 2048 and v.nOutputPlane == 1024) then
+            v.weight:normal(0,0.01)
          else
-            v.weight:normal(0,0.001)
+            v.weight:normal(0,math.sqrt(2/n))
          end
          if cudnn.version >= 4000 then
             v.bias = nil
@@ -286,8 +286,10 @@ local function createModel(opt)
    DiConvInit('nn.SpatialDilatedConvolution')
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
-      if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
-         v.weight:normal(0,0.001)
+      if v.nOutputPlane == 10 or v.nOutputPlane == 1000 then
+         v.weight:normal(0,0.01)
+      else
+         v.weight:fill(1)
       end
    end
    

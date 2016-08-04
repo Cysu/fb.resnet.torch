@@ -1,4 +1,4 @@
---
+t-
 --  Copyright (c) 2016, Facebook, Inc.
 --  All rights reserved.
 --
@@ -127,6 +127,9 @@ local function createModel(opt)
    -- RCN-Regional Convolutional Network
    local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
       local s = nn.Sequential()
+      local nMiddle = nInputPlane / 2
+      s:add(Convolution(nInputPlane, nMiddle, 1, 1))
+      s:add(ReLU(true))
       local table = nn.ConcatTable()
       local len3 = math.ceil(w / multiFactor)
       local len4 = math.ceil(h / multiFactor)
@@ -218,10 +221,10 @@ local function createModel(opt)
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
          local n = v.kW*v.kH*v.nOutputPlane
-         if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
-            v.weight:normal(0,math.sqrt(2/n))
+         if v.nOutputPlane == 10 or v.nOutputPlane == 1000 or (v.nInputPlane == 320 and v.nOutputPlane == 160) or (v.nInputPlane == 2048 and v.nOutputPlane == 1024) then
+            v.weight:normal(0,0.01)
          else
-            v.weight:normal(0,0.001)
+            v.weight:normal(0,math.sqrt(2/n))
          end
          if cudnn.version >= 4000 then
             v.bias = nil
@@ -245,8 +248,10 @@ local function createModel(opt)
    BNInit('nn.SpatialBatchNormalization')
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
-      if v.nOutputPlane ~= 10 and v.nOutputPlane ~= 1000 then
-         v.weight:normal(0,0.001)
+      if v.nOutputPlane == 10 or v.nOutputPlane == 1000 then
+         v.weight:normal(0,0.01)
+      else
+         v.weight:fill(1)
       end
    end
    model:cuda()

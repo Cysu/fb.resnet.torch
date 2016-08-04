@@ -26,7 +26,14 @@ function M.setup(opt, checkpoint)
    elseif opt.retrain ~= 'none' then
       assert(paths.filep(opt.retrain), 'File not found: ' .. opt.retrain)
       print('Loading model from file: ' .. opt.retrain)
-      model = torch.load(opt.retrain)
+      if opt.multiFactor > 1 then
+         -- Add rcn into a pretrained network
+         pretrained = torch.load(opt.retrain)
+         model = require('models/rcn')(opt, pretrained)
+         --
+      else
+         model = torch.load(opt.retrain)
+      end
    else
       print('=> Creating model from file: models/' .. opt.netType .. '.lua')
       model = require('models/' .. opt.netType)(opt)

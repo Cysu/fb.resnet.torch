@@ -4,3 +4,5 @@ model_best.t7
 checkpoints*
 *log*
 *.swp
+pretrained/*.t7
+*visual*
