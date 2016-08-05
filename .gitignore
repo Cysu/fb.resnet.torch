@@ -7,3 +7,4 @@ pretrained/*.t7
 *.swp
 pretrained/*.t7
 *visual*
+pretrained/MemUsage/
