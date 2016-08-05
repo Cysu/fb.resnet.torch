@@ -6,3 +6,4 @@ checkpoints*
 *.swp
 pretrained/*.t7
 *visual*
+pretrained/MemUsage/
