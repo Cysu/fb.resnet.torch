@@ -82,17 +82,16 @@ local function createModel(opt)
          Convolution(nInputPlane,nOutputPlane,1,1,stride,stride,0,0)
       local convs = getConvs()
 
-      local mid = getMul(numPoly)(convs(input))
+      local mid = convs(input)
 
-      local branches = {shortcut(input), mid}
+      local branches = {shortcut(input), getMul(numPoly)(mid)}
       for i = 2, numPoly do
          local newConvs = getConvs()
-         newConvs:share(convs, 'weight', 'bias', 'gradWeight', 'gradBias')
-         mid = getMul(numPoly)(newConvs(mid))
-         table.insert(branches, mid)
+         mid = newConvs(mid)
+         table.insert(branches, getMul(numPoly)(mid))
       end
 
-      return nn.CAddTable(true)(branches)
+      return nn.CAddTable()(branches)
    end
 
    -- Stacking Residual Units on the same stage
