@@ -48,6 +48,13 @@ if opt.testOnly then
    end
    local top1Err, top5Err = trainer:test(0, valLoader)
    print(string.format(' * Results top1: %6.3f  top5: %6.3f', top1Err, top5Err))
+
+   -- Save the model
+   if torch.type(model) == 'nn.DataParallelTable' then
+      model = model:get(1)
+   end
+   model = model:float():clearState()
+   torch.save('model_recomputebn.t7', model)
    return
 end
 
