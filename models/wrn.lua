@@ -214,23 +214,39 @@ local function createModel(opt)
 
       local k = opt.widen_factor
       local nStages = torch.Tensor{16, 16*k, 32*k, 64*k}
+      local nClasses = opt.dataset == 'cifar10' and 10 or 100
 
       model:add(Convolution(3,nStages[1],3,3,1,1,1,1)) -- one conv at the beginning (spatial size: 32x32)
       local block = opt.nDilation == 1 and wide_basic or wide_basic_dilated
       model:add(layer(block, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
       model:add(layer(block, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
-      model:add(layer(block, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
-      model:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
-      model:add(ReLU(true))
-
-      -- Multi pose subclass
-      local nClasses = opt.dataset == 'cifar10' and 10 or 100
-      if opt.multiFactor > 1 then 
-         model:add(rcn(nStages[4], nClasses))
-      else
+      if opt.multiFactor == 1 then
+         model:add(layer(block, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
+         model:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
+         model:add(ReLU(true))
          model:add(Avg(8, 8, 1, 1))
          model:add(nn.View(nStages[4]):setNumInputDims(3))
          model:add(nn.Linear(nStages[4], nClasses))
+      else
+         -- Two-way RFCN+FC
+         local rfcn = nn.Sequential()
+         local combine = nn.ConcatTable()
+         local r = nn.Sequential()
+         r:add(layer(block, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
+         r:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
+         r:add(ReLU(true))
+         r:add(Avg(8, 8, 1, 1))
+         r:add(nn.View(nStages[4]):setNumInputDims(3))
+         r:add(nn.Linear(nStages[4], nClasses))
+         local s = nn.Sequential()
+         s:add(ShareGradInput(SBatchNorm(nStages[3]), 'last'))
+         s:add(ReLU(true))
+         s:add(rcn(nStages[3], nClasses))
+         combine:add(r)
+         combine:add(s)
+         rfcn:add(combine)
+         rfcn:add(nn.CAddTable())
+         model:add(rfcn)
       end
    else
       error('invalid dataset: ' .. opt.dataset)
