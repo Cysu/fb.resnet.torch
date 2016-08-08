@@ -35,9 +35,10 @@ function M.parse(arg)
    cmd:option('-save',            'checkpoints', 'Directory in which to save checkpoints')
    cmd:option('-resume',          'none',        'Resume from the latest checkpoint in this directory')
    ---------- Optimization options ----------------------
-   cmd:option('-LR',              0.1,   'initial learning rate')
-   cmd:option('-momentum',        0.9,   'momentum')
-   cmd:option('-weightDecay',     1e-4,  'weight decay')
+   cmd:option('-LR',                 0.1,     'initial learning rate')
+   cmd:option('-momentum',           0.9,     'momentum')
+   cmd:option('-weightDecay',        1e-4,    'weight decay')
+   cmd:option('-recomputeBatchNorm', 'false', 'recompute batch norm statistics')
    ---------- Model options ----------------------------------
    cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
    cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
@@ -60,6 +61,7 @@ function M.parse(arg)
    opt.shareGradInput = opt.shareGradInput ~= 'false'
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
+   opt.recomputeBatchNorm = opt.recomputeBatchNorm ~= 'false'
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')
