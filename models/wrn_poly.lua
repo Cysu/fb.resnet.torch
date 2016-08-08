@@ -12,7 +12,6 @@
 
 local nn = require 'nn'
 require 'cunn'
-require 'nngraph'
 
 local Convolution = cudnn.SpatialConvolution
 local Avg = cudnn.SpatialAveragePooling
@@ -24,6 +23,7 @@ local function createModel(opt)
    local depth = opt.depth
    local shortcutType = opt.shortcutType or 'B'
    local iChannels
+   local nPoly = opt.nPoly
 
    -- Typically shareGradInput uses the same gradInput storage for all modules
    -- of the same type. This is incorrect for some SpatialBatchNormalization
@@ -35,101 +35,86 @@ local function createModel(opt)
       return module
    end
 
-   local function wide_basic(nInputPlane, nOutputPlane, stride, input)
+   local function wide_poly(nInputPlane, nOutputPlane, stride)
       local conv_params = {
          {3,3,stride,stride,1,1},
          {3,3,1,1,1,1},
       }
-      local nBottleneckPlane = nOutputPlane
 
+      local function poly_block(k)
+         local trans = nn.Sequential()
+         if k > 1 or nInputPlane == nOutputPlane then
+            trans:add(SBatchNorm(nOutputPlane))
+            trans:add(ReLU(true))
+         end
+         trans:add(Convolution(
+            k == 1 and nInputPlane or nOutputPlane,
+            nOutputPlane,
+            table.unpack(k == 1 and conv_params[1] or conv_params[2])))
+         if k == nPoly then
+            return trans
+         end
+         return nn.Sequential()
+            :add(trans)
+            :add(nn.ConcatTable()
+               :add(poly_block(k + 1))
+               :add(nn.Identity()))
+            :add(nn.CAddTable())
+      end
+
+      local block = nn.Sequential()
       if nInputPlane ~= nOutputPlane then
-         local block = nn.Sequential()
          block:add(ShareGradInput(SBatchNorm(nInputPlane), 'preact'))
          block:add(ReLU(true))
-         input = block(input)
       end
-
-      local function getConvs()
-        local convs = nn.Sequential()
-        for i,v in ipairs(conv_params) do
-           if i == 1 then
-              if nInputPlane == nOutputPlane then
-                 convs:add(ShareGradInput(SBatchNorm(nInputPlane), 'preact'))
-                 convs:add(ReLU(true))
-              end
-              convs:add(Convolution(nInputPlane,nBottleneckPlane,table.unpack(v)))
-           else
-              convs:add(SBatchNorm(nBottleneckPlane)):add(ReLU(true))
-              if opt.dropout > 0 then
-                 convs:add(nn.Dropout(opt and opt.dropout or 0,nil,true))
-              end
-              convs:add(Convolution(nBottleneckPlane,nBottleneckPlane,table.unpack(v)))
-           end
-        end
-        return convs
-      end
-
-      local function getMul(numPoly)
-         local s = nn.Mul()
-         s.weight:fill(1. / numPoly)
-         return s
-      end
-
-      local numPoly = nInputPlane == nOutputPlane and opt.nPoly or 1
 
       local shortcut = nInputPlane == nOutputPlane and
          nn.Identity() or
          Convolution(nInputPlane,nOutputPlane,1,1,stride,stride,0,0)
-      local convs = getConvs()
 
-      local mid = convs(input)
-
-      local branches = {shortcut(input), getMul(numPoly)(mid)}
-      for i = 2, numPoly do
-         local newConvs = getConvs()
-         mid = newConvs(mid)
-         table.insert(branches, getMul(numPoly)(mid))
+      local trans = poly_block(1)
+      if opt.dropout > 0 then
+         trans:add(nn.Dropout(opt and opt.dropout or 0,nil,true))
       end
 
-      return nn.CAddTable()(branches)
+      return block
+         :add(nn.ConcatTable()
+            :add(trans)
+            :add(shortcut))
+         :add(nn.CAddTable())
    end
 
    -- Stacking Residual Units on the same stage
-   local function layer(block, nInputPlane, nOutputPlane, count, stride, input)
-      local output = block(nInputPlane, nOutputPlane, stride, input)
+   local function layer(block, nInputPlane, nOutputPlane, count, stride)
+      local s = nn.Sequential()
+      s:add(block(nInputPlane, nOutputPlane, stride))
       for i=2,count do
-         output = block(nOutputPlane, nOutputPlane, 1, output)
+         s:add(block(nOutputPlane, nOutputPlane, 1))
       end
-      return output
+      return s
    end
 
-   local input = nn.Identity()()
-   local outputs
+   local model = nn.Sequential()
    if opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
       assert((depth - 4) % 6 == 0, 'depth should be 6n+4')
       local n = (depth - 4) / 6
 
-      local k = opt.widen_factor
-      local nStages = torch.Tensor{16, 16*k, 32*k, 64*k}
+      local k = opt.widen_factor * 5 / (2*nPoly + 1)
+      local nStages = torch.Tensor{16, math.floor(16*k), math.floor(32*k), math.floor(64*k)}
 
-      local out = Convolution(3,nStages[1],3,3,1,1,1,1)(input) -- one conv at the beginning (spatial size: 32x32)
-      out = layer(wide_basic, nStages[1], nStages[2], n, 1, out) -- Stage 1 (spatial size: 32x32)
-      out = layer(wide_basic, nStages[2], nStages[3], n, 2, out) -- Stage 2 (spatial size: 16x16)
-      out = layer(wide_basic, nStages[3], nStages[4], n, 2, out) -- Stage 3 (spatial size: 8x8)
-
-      local last = nn.Sequential()
-      last:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
-      last:add(ReLU(true))
-      last:add(Avg(8, 8, 1, 1))
-      last:add(nn.View(nStages[4]):setNumInputDims(3))
+      model:add(Convolution(3,nStages[1],3,3,1,1,1,1)) -- one conv at the beginning (spatial size: 32x32)
+      model:add(layer(wide_poly, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
+      model:add(layer(wide_poly, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
+      model:add(layer(wide_poly, nStages[3], nStages[4], n, 2)) -- Stage 3 (spatial size: 8x8)
+      model:add(ShareGradInput(SBatchNorm(nStages[4]), 'last'))
+      model:add(ReLU(true))
+      model:add(Avg(8, 8, 1, 1))
+      model:add(nn.View(nStages[4]):setNumInputDims(3))
       local nClasses = opt.dataset == 'cifar10' and 10 or 100
-      last:add(nn.Linear(nStages[4], nClasses))
-
-      outputs = {last(out)}
+      model:add(nn.Linear(nStages[4], nClasses))
    else
       error('invalid dataset: ' .. opt.dataset)
    end
-   local model = nn.gModule({input}, outputs)
 
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
