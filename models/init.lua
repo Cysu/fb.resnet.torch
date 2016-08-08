@@ -13,6 +13,7 @@
 require 'nn'
 require 'cunn'
 require 'cudnn'
+require 'models/SequentialDropout'
 
 local M = {}
 
