@@ -47,6 +47,9 @@ local function createModel(opt)
             trans:add(SBatchNorm(nOutputPlane))
             trans:add(ReLU(true))
          end
+         if k > 1 and opt.dropout > 0 then
+            trans:add(nn.Dropout(opt and opt.dropout or 0,nil,true))
+         end
          trans:add(Convolution(
             k == 1 and nInputPlane or nOutputPlane,
             nOutputPlane,
@@ -72,14 +75,9 @@ local function createModel(opt)
          nn.Identity() or
          Convolution(nInputPlane,nOutputPlane,1,1,stride,stride,0,0)
 
-      local trans = poly_block(1)
-      if opt.dropout > 0 then
-         trans:add(nn.Dropout(opt and opt.dropout or 0,nil,true))
-      end
-
       return block
          :add(nn.ConcatTable()
-            :add(trans)
+            :add(poly_block(1))
             :add(shortcut))
          :add(nn.CAddTable())
    end
