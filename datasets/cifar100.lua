@@ -6,21 +6,25 @@
 --  LICENSE file in the root directory of this source tree. An additional grant
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
---  CIFAR-100 dataset loader
---
+
+------------
+-- This file is downloading and transforming CIFAR-100.
+-- It is based on cifar10.lua
+-- Ludovic Trottier
+------------
 
 local t = require 'datasets/transforms'
 
 local M = {}
-local Cifar100Dataset = torch.class('resnet.Cifar100Dataset', M)
+local CifarDataset = torch.class('resnet.CifarDataset', M)
 
-function Cifar100Dataset:__init(imageInfo, opt, split)
+function CifarDataset:__init(imageInfo, opt, split)
    assert(imageInfo[split], split)
    self.imageInfo = imageInfo[split]
    self.split = split
 end
 
-function Cifar100Dataset:get(i)
+function CifarDataset:get(i)
    local image = self.imageInfo.data[i]:float()
    local label = self.imageInfo.labels[i]
 
@@ -30,17 +34,24 @@ function Cifar100Dataset:get(i)
    }
 end
 
-function Cifar100Dataset:size()
+function CifarDataset:size()
    return self.imageInfo.data:size(1)
 end
 
--- Computed from entire CIFAR-100 training set
+
+-- Computed from entire CIFAR-100 training set with this code:
+--      dataset = torch.load('cifar100.t7')
+--      tt = dataset.train.data:double();
+--      tt = tt:transpose(2,4);
+--      tt = tt:reshape(50000*32*32, 3);
+--      tt:mean(1)
+--      tt:std(1)
 local meanstd = {
    mean = {129.3, 124.1, 112.4},
    std  = {68.2,  65.4,  70.4},
 }
 
-function Cifar100Dataset:preprocess()
+function CifarDataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
          t.ColorNormalize(meanstd),
@@ -54,4 +65,4 @@ function Cifar100Dataset:preprocess()
    end
 end
 
-return M.Cifar100Dataset
+return M.CifarDataset
