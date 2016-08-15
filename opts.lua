@@ -48,6 +48,7 @@ function M.parse(arg)
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
    cmd:option('-dropout',      0,      'Dropout ratio')
    cmd:option('-widen_factor', 10,       'Widen factor')
+   cmd:option('-fixPretrain', 'false',   'Fix pretrained models\'s weights')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
@@ -64,6 +65,7 @@ function M.parse(arg)
    opt.shareGradInput = opt.shareGradInput ~= 'false'
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
+   opt.fixPretrain = opt.fixPretrain ~= 'false'
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')

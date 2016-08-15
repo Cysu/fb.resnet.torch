@@ -5,24 +5,29 @@ require 'cudnn'
 local Convolution = cudnn.SpatialConvolution
 local Max = nn.SpatialMaxPooling
 local ReLU = cudnn.ReLU 
+local SBatchNorm = nn.SpatialBatchNormalization
 
 local function createModel(opt, preModel)
-   -- remove the avg_pooling and fc part of ResNet-34
-   for i = 1,3 do
-      preModel:remove()
+   local function ShareGradInput(module, key)
+      assert(key)
+      module.__shareGradInputKey = key
+      return module
    end
    
    -- add rcn after the feature maps
    local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
       local s = nn.Sequential()
-      -- reduce dimension
-      local nMiddle = 1024
-      local conv0 = Convolution(nInputPlane, nMiddle, 1, 1)
-      -- initialize
-      conv0.weight:normal(0, 0.01)
-      conv0.bias:zero()
-      s:add(conv0)
+      local sOutside = nn.Sequential()
+      s:add(SBatchNorm(nInputPlane))
       s:add(ReLU(true))
+      -- reduce dimension
+      -- local nMiddle = nInputPlane / 2 
+      -- local conv0 = Convolution(nInputPlane, nMiddle, 1, 1)
+      -- initialize
+      -- conv0.weight:normal(0, 0.01)
+      -- conv0.bias:zero()
+      -- s:add(conv0)
+      -- s:add(ReLU(true))
 
       local table = nn.ConcatTable()
       local len3 = math.ceil(w / multiFactor)
@@ -42,7 +47,7 @@ local function createModel(opt, preModel)
             part:add(nn.Narrow(3, offset3, len3))
             part:add(nn.Narrow(4, offset4, len4))
             -- 1x1 Convolution
-            local conv1 = Convolution(nMiddle, nOutputPlane, 1, 1)
+            local conv1 = Convolution(nInputPlane, nOutputPlane, 1, 1)
             -- initialize
             conv1.weight:normal(0, 0.01)
             conv1.bias:zero()
@@ -54,8 +59,13 @@ local function createModel(opt, preModel)
 
       s:add(table)
       s:add(nn.CAddTable())
-      s:add(nn.View(nOutputPlane):setNumInputDims(3))
-      return s
+      -- Balance the RFCN output and fc-layer output
+      local mul = nn.Mul()
+      mul.weight:fill(0.25)
+      sOutside:add(s)
+      sOutside:add(mul)
+      sOutside:add(nn.View(nOutputPlane):setNumInputDims(3))
+      return sOutside
    end
 
    local cfg = {
@@ -67,8 +77,26 @@ local function createModel(opt, preModel)
       [200] = {{3, 24, 36, 3}, 2048, bottleneck},
    }
 
-   preModel:add(rcn(cfg[opt.depth][2], 1000, opt.multiFactor, 7, 7))
+   local sz = preModel:size()
+   local RFCN = nn.ConcatTable()
+   local r = nn.Sequential()
+   for i = 3, 0, -1 do
+      r:add(preModel:get(sz - i))
+   end
+   for i = 0, 3 do
+      preModel:remove()
+   end
+
+   local s = rcn(cfg[opt.depth][2] / 2, 1000, opt.multiFactor, 14, 14)
+
+   RFCN:add(r)
+   RFCN:add(s)
+
+   preModel:add(RFCN)
+   preModel:add(nn.CAddTable())
+
    preModel:cuda()
+
    return preModel
  
 end

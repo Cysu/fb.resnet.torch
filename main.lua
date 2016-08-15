@@ -34,7 +34,7 @@ local trainLoader, valLoader = DataLoader.create(opt)
 
 -- logfile
 if opt.logFile ~= 'none' then
-   opt.logFile = io.open(opt.logFile .. '.log', 'w')
+   opt.logFile = io.open(opt.logFile .. '.log', 'a')
 else
    opt.logFile = nil
 end
