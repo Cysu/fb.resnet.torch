@@ -32,6 +32,13 @@ local model, criterion = models.setup(opt, checkpoint)
 -- Data loading
 local trainLoader, valLoader = DataLoader.create(opt)
 
+-- logfile
+if opt.logFile ~= 'none' then
+   opt.logFile = io.open(opt.logFile .. '.log', 'a')
+else
+   opt.logFile = nil
+end
+
 -- The trainer handles the training loop and evaluation on validation set
 local trainer = Trainer(model, criterion, opt, optimState)
 
@@ -84,5 +91,6 @@ if opt.recomputeBatchNorm then
 
    checkpoints.save(epoch, model, trainer.optimState, bestModel, opt)
 end
+opt.logFile:close()
 
 print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))

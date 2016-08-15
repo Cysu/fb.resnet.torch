@@ -1,4 +1,9 @@
 gen/
 libnccl.so
 model_best.t7
-checkpoints
+checkpoints*
+*log*
+*.swp
+pretrained/*.t7
+*visual*
+pretrained/MemUsage/

@@ -78,9 +78,21 @@ function M.setup(opt, checkpoint)
       end)
    end
 
+   -- Special for fixing pretrained parameters
+   if opt.fixPretrain then
+      model.parameters = function(self)
+         local rfcn = self:get(self:size() - 1):get(2)
+         local s = rfcn:get(1)
+
+         return s:parameters()
+      end
+   else
+      model.parameters = nn.Sequential().parameters
+   end
+
    -- Wrap the model with DataParallelTable, if using more than one GPU
    if opt.nGPU > 1 then
-      local gpus = torch.range(1, opt.nGPU):totable()
+      local gpus = torch.range(opt.startGPU, opt.startGPU + opt.nGPU - 1):totable()
       local fastest, benchmark = cudnn.fastest, cudnn.benchmark
 
       local dpt = nn.DataParallelTable(1, true, true)
@@ -93,6 +105,7 @@ function M.setup(opt, checkpoint)
       dpt.gradInput = nil
 
       model = dpt:cuda()
+
    end
 
    local criterion = nn.CrossEntropyCriterion():cuda()
