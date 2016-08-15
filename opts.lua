@@ -17,7 +17,7 @@ function M.parse(arg)
    cmd:text('Options:')
     ------------ General options --------------------
    cmd:option('-data',       '',         'Path to dataset')
-   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10')
+   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10 | cifar100')
    cmd:option('-manualSeed', 0,          'Manually set RNG seed')
    cmd:option('-nGPU',       1,          'Number of GPUs to use by default')
    cmd:option('-backend',    'cudnn',    'Options: cudnn | cunn')
@@ -26,9 +26,9 @@ function M.parse(arg)
    ------------- Data options ------------------------
    cmd:option('-nThreads',        2, 'number of data loading threads')
    ------------- Training options --------------------
-   cmd:option('-nEpochs',         0,       'Number of total epochs to run')
+   cmd:option('-nEpochs',         200,       'Number of total epochs to run')
    cmd:option('-epochNumber',     1,       'Manual epoch number (useful on restarts)')
-   cmd:option('-batchSize',       32,      'mini-batch size (1 = pure stochastic)')
+   cmd:option('-batchSize',       128,      'mini-batch size (1 = pure stochastic)')
    cmd:option('-testOnly',        'false', 'Run on validation set only')
    cmd:option('-tenCrop',         'false', 'Ten-crop testing')
    ------------- Checkpointing options ---------------
@@ -37,15 +37,17 @@ function M.parse(arg)
    ---------- Optimization options ----------------------
    cmd:option('-LR',              0.1,   'initial learning rate')
    cmd:option('-momentum',        0.9,   'momentum')
-   cmd:option('-weightDecay',     1e-4,  'weight decay')
+   cmd:option('-weightDecay',     5e-4,  'weight decay')
    ---------- Model options ----------------------------------
-   cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
-   cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
+   cmd:option('-netType',      'wrn',    'Options: resnet | preresnet | wrn')
+   cmd:option('-depth',        28,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
    cmd:option('-shortcutType', '',       'Options: A | B | C')
    cmd:option('-dropMode',     '',       'Options: const | lindecay')
    cmd:option('-dropRate',     0,        'The dropout rate of the last residual block')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
+   cmd:option('-dropout',      0,      'Dropout ratio')
+   cmd:option('-widen_factor', 10,       'Widen factor')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
@@ -77,10 +79,10 @@ function M.parse(arg)
       -- Default shortcutType=B and nEpochs=90
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
       opt.nEpochs = opt.nEpochs == 0 and 120 or opt.nEpochs
-   elseif opt.dataset == 'cifar10' then
-      -- Default shortcutType=A and nEpochs=164
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
+      -- Default shortcutType=A and nEpochs=200
       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
+      opt.nEpochs = opt.nEpochs == 0 and 200 or opt.nEpochs
    else
       cmd:error('unknown dataset: ' .. opt.dataset)
    end
