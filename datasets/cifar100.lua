@@ -26,11 +26,12 @@ end
 
 function CifarDataset:get(i)
    local image = self.imageInfo.data[i]:float()
-   local label = self.imageInfo.labels[i]
+   local fineLabel = self.imageInfo.fineLabels[i]
+   local coarseLabel = self.imageInfo.coarseLabels[i]
 
    return {
       input = image,
-      target = label,
+      target = {fineLabel, coarseLabel},
    }
 end
 

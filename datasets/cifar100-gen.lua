@@ -30,35 +30,40 @@ local function convertCifar100BinToTorchTensor(inputFname)
    local coarse = torch.ByteTensor(nSamples)
    local fine = torch.ByteTensor(nSamples)
    local data = torch.ByteTensor(nSamples, 3, 32, 32)
+   local fineToCoarse = {}
    for i=1,nSamples do
       coarse[i] = m:readByte()
       fine[i]   = m:readByte()
       local store = m:readByte(3072)
       data[i]:copy(torch.ByteTensor(store))
+      assert(fineToCoarse[fine[i]+1] == nil or fineToCoarse[fine[i]+1] == coarse[i]+1)
+      fineToCoarse[fine[i]+1] = coarse[i]+1
    end
 
    local out = {}
    out.data = data
    -- This is *very* important. The downloaded files have labels 0-9, which do
    -- not work with CrossEntropyCriterion
-   out.labels = fine + 1
+   out.fineLabels = fine + 1
+   out.coarseLabels = coarse + 1
 
-   return out
+   return out, fineToCoarse
 end
 
 function M.exec(opt, cacheFile)
    print("=> Downloading CIFAR-100 dataset from " .. URL)
 
-   local ok = os.execute('curl ' .. URL .. ' | tar xz -C  gen/')
-   assert(ok == true or ok == 0, 'error downloading CIFAR-100')
+   -- local ok = os.execute('curl ' .. URL .. ' | tar xz -C  gen/')
+   -- assert(ok == true or ok == 0, 'error downloading CIFAR-100')
 
    print(" | combining dataset into a single file")
 
-   local trainData = convertCifar100BinToTorchTensor('gen/cifar-100-binary/train.bin')
-   local testData = convertCifar100BinToTorchTensor('gen/cifar-100-binary/test.bin')
+   local trainData, idxToSuperIdx = convertCifar100BinToTorchTensor('gen/cifar-100-binary/train.bin')
+   local testData, _ = convertCifar100BinToTorchTensor('gen/cifar-100-binary/test.bin')
 
    print(" | saving CIFAR-100 dataset to " .. cacheFile)
    torch.save(cacheFile, {
+      idxToSuperIdx = idxToSuperIdx,
       train = trainData,
       val = testData,
    })
