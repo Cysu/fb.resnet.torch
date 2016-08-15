@@ -51,6 +51,7 @@ function M.parse(arg)
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
    cmd:option('-dropout',      0,      'Dropout ratio')
    cmd:option('-widen_factor', 10,       'Widen factor')
+   cmd:option('-fixPretrain', 'false',   'Fix pretrained models\'s weights')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')

@@ -82,8 +82,10 @@ function Trainer:train(epoch, dataloader)
          self.logFile:flush()
       end
 
-      -- check that the storage didn't get changed do to an unfortunate getParameters call
-      assert(self.params:storage() == self.model:parameters()[1]:storage())
+      -- check that the storage didn't get changed due to an unfortunate getParameters call
+      if not self.opt.fixPretrain then
+         assert(self.params:storage() == self.model:parameters()[1]:storage())
+      end
 
       timer:reset()
       dataTimer:reset()
@@ -102,7 +104,7 @@ function Trainer:test(epoch, dataloader)
    local nCrops = self.opt.tenCrop and 10 or 1
    local top1Sum, top5Sum = 0.0, 0.0
    local N = 0
-
+   
    self.model:evaluate()
    for n, sample in dataloader:run() do
       local dataTime = dataTimer:time().real
@@ -247,7 +249,12 @@ function Trainer:learningRate(epoch)
    local decay = 0
    local ratio = 0.1
    if self.opt.dataset == 'imagenet' then
-      decay = math.floor((epoch - 1) / 30)
+      -- decay = math.floor((epoch - 1) / 30)
+      if epoch < 15 then
+         decay = math.floor((epoch - 1) / 10)
+      else
+         decay = 3
+      end
    elseif self.opt.dataset == 'cifar10' or self.opt.dataset == 'cifar100' then
       decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
       ratio = 0.2
