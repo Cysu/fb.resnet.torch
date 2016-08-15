@@ -53,8 +53,8 @@ end
 function M.exec(opt, cacheFile)
    print("=> Downloading CIFAR-100 dataset from " .. URL)
 
-   -- local ok = os.execute('curl ' .. URL .. ' | tar xz -C  gen/')
-   -- assert(ok == true or ok == 0, 'error downloading CIFAR-100')
+   local ok = os.execute('curl ' .. URL .. ' | tar xz -C  gen/')
+   assert(ok == true or ok == 0, 'error downloading CIFAR-100')
 
    print(" | combining dataset into a single file")
 
