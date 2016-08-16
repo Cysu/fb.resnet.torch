@@ -71,14 +71,13 @@ else
 
    torch.save(opt.newFile, model)
    print "- RFCN model saved."
-   print "- Starting to fine-tune..."
 
    -- Fine-tune
    cmd = "CUDA_VISIBLE_DEVICES=".. opt.devices .. " OMP_NUM_THREADS=1 th main.lua " ..
    "-data " .. opt.data .. " -nGPU " .. opt.nGPU .. " -nThreads 16 -batchSize " ..
    opt.batchSize .. " -depth " .. tostring(opt.depth) .. " -dropout 0.5" ..
    " -nEpochs " .. opt.nEpochs .. " -LR " .. opt.LR ..
-   " -retrain " .. opt.newFile
+   " -retrain " .. opt.newFile .. ".t7"
    if opt.logFile then
       cmd = cmd .. " -logFile " .. opt.logFile
    end
@@ -87,4 +86,5 @@ else
    file:write(cmd)
    file:close()
 
+   print "- Ready to fine-tune."
 end
