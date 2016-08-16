@@ -74,11 +74,11 @@ function Trainer:train(epoch, dataloader)
 
       local time = timer:time().real
       totalTime = totalTime + time
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
-         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      print((' | Epoch: [%d][%d/%d]    Time %.3f (%.3f)  Data %.3f (%.3f)  Err %1.4f (%1.4f)  top1 %7.3f (%.3f)  top5 %7.3f (%6.3f)'):format(
+         epoch, n, trainSize, time, totalTime / N, dataTime, totalDataTime / N, loss, lossSum / N, top1, top1Sum / N, top5, top5Sum / N))
       if self.logFile and n == trainSize then
          self.logFile:write((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
-            epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5) .. '\n')
+            epoch, n, trainSize, timer:time().real, dataTime, loss, top1Sum / N, top5Sum / N) .. '\n')
          self.logFile:flush()
       end
 
@@ -249,7 +249,7 @@ function Trainer:learningRate(epoch)
    local decay = 0
    local ratio = 0.1
    if self.opt.dataset == 'imagenet' then
-      -- decay = math.floor((epoch - 1) / 30)
+      -- decay = math.floor((epoch - 1) / 40)
       if epoch < 15 then
          decay = math.floor((epoch - 1) / 10)
       else

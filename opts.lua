@@ -34,7 +34,7 @@ function M.parse(arg)
    ---------- Optimization options ----------------------
    cmd:option('-LR',                 0.1,     'initial learning rate')
    cmd:option('-momentum',           0.9,     'momentum')
-   cmd:option('-weightDecay',        5e-4,    'weight decay')
+   cmd:option('-weightDecay',        1e-4,    'weight decay')
    cmd:option('-recomputeBatchNorm', 'false', 'recompute batch norm statistics')
    ---------- Model options ----------------------------------
    cmd:option('-netType',      'wrn',    'Options: resnet | preresnet | wrn')
