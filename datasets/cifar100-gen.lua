@@ -18,10 +18,6 @@ local URL = 'http://www.cs.toronto.edu/~kriz/cifar-100-binary.tar.gz'
 
 local M = {}
 
-local URL = 'http://www.cs.toronto.edu/~kriz/cifar-100-binary.tar.gz'
-
-local M = {}
-
 local function convertCifar100ToTensor(file)
    local m = torch.DiskFile(file, 'r'):binary()
    m:seekEnd()

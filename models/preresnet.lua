@@ -191,13 +191,6 @@ local function createModel(opt)
       model:add(layer(block, 512, def[4], 2))
       model:add(ShareGradInput(SBatchNorm(iChannels), 'last'))
       model:add(ReLU(true))
-<<<<<<< HEAD
-      model:add(Avg(7, 7, 1, 1))
-      model:add(nn.View(nFeatures):setNumInputDims(3))
-      model:add(nn.Linear(nFeatures, 1000))
-   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
-      -- Model type specifies number of layers for CIFAR model
-=======
       if opt.multiFactor == 1 then
          model:add(Avg(7, 7, 1, 1))
          model:add(nn.View(nFeatures):setNumInputDims(3))
@@ -205,9 +198,7 @@ local function createModel(opt)
       else
          model:add(rcn(nFeatures, 1000, opt.multiFactor, 7, 7))
       end
-   elseif opt.dataset == 'cifar10' then
-      -- Model type specifies number of layers for CIFAR-10 model
->>>>>>> Correct some issues in preresnet/wrn
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
       assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')
       local n = (depth - 2) / 6
       iChannels = 16

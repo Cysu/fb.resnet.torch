@@ -145,7 +145,6 @@ local function createModel(opt)
       model:add(layer(basicblock, 64, n, 2))
       model:add(Avg(8, 8, 1, 1))
       model:add(nn.View(64):setNumInputDims(3))
-<<<<<<< HEAD
       model:add(nn.Linear(64, 10))
    elseif opt.dataset == 'cifar100' then
       -- Model type specifies number of layers for CIFAR-100 model
@@ -164,10 +163,8 @@ local function createModel(opt)
       model:add(Avg(8, 8, 1, 1))
       model:add(nn.View(64):setNumInputDims(3))
       model:add(nn.Linear(64, 100))
-=======
       local nClasses = opt.dataset == 'cifar10' and 10 or 100
       model:add(nn.Linear(64, nClasses))
->>>>>>> Add cifar-100
    else
       error('invalid dataset: ' .. opt.dataset)
    end
