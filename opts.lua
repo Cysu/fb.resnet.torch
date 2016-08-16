@@ -1,8 +1,3 @@
---
---  Copyright (c) 2016, Facebook, Inc.
---  All rights reserved.
---
---  This source code is licensed under the BSD-style license found in the
 --  LICENSE file in the root directory of this source tree. An additional grant
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
@@ -51,14 +46,12 @@ function M.parse(arg)
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
    cmd:option('-dropout',      0,      'Dropout ratio')
    cmd:option('-widen_factor', 10,       'Widen factor')
-   cmd:option('-fixPretrain', 'false',   'Fix pretrained models\'s weights')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
    cmd:option('-nDilation', 1, 'Number of pixels to skip in the Dilated Convolution')
-   cmd:option('-multiFactor', 1, 'Factor of pose-different subclasses')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
