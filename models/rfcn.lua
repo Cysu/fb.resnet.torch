@@ -7,7 +7,7 @@ local Max = nn.SpatialMaxPooling
 local ReLU = cudnn.ReLU 
 local SBatchNorm = nn.SpatialBatchNormalization
 
-local function createModel(opt, preModel)
+local function createModel(depth, multiFactor, preModel)
    local function ShareGradInput(module, key)
       assert(key)
       module.__shareGradInputKey = key
@@ -21,13 +21,13 @@ local function createModel(opt, preModel)
       s:add(SBatchNorm(nInputPlane))
       s:add(ReLU(true))
       -- reduce dimension
-      -- local nMiddle = nInputPlane / 2 
-      -- local conv0 = Convolution(nInputPlane, nMiddle, 1, 1)
+      local nMiddle = nInputPlane / 2 
+      local conv0 = Convolution(nInputPlane, nMiddle, 1, 1)
       -- initialize
-      -- conv0.weight:normal(0, 0.01)
-      -- conv0.bias:zero()
-      -- s:add(conv0)
-      -- s:add(ReLU(true))
+      conv0.weight:normal(0, 0.01)
+      conv0.bias:zero()
+      s:add(conv0)
+      s:add(ReLU(true))
 
       local table = nn.ConcatTable()
       local len3 = math.ceil(w / multiFactor)
@@ -47,7 +47,7 @@ local function createModel(opt, preModel)
             part:add(nn.Narrow(3, offset3, len3))
             part:add(nn.Narrow(4, offset4, len4))
             -- 1x1 Convolution
-            local conv1 = Convolution(nInputPlane, nOutputPlane, 1, 1)
+            local conv1 = Convolution(nMiddle, nOutputPlane, 1, 1)
             -- initialize
             conv1.weight:normal(0, 0.01)
             conv1.bias:zero()
@@ -62,6 +62,9 @@ local function createModel(opt, preModel)
       -- Balance the RFCN output and fc-layer output
       local mul = nn.Mul()
       mul.weight:fill(0.25)
+      -- Freeze the multiplyer
+      mul.accGradParameters = function() end
+      mul.updateParameters = function() end
       sOutside:add(s)
       sOutside:add(mul)
       sOutside:add(nn.View(nOutputPlane):setNumInputDims(3))
@@ -80,10 +83,21 @@ local function createModel(opt, preModel)
    local sz = preModel:size()
    local RFCN = nn.ConcatTable()
    local r = nn.Sequential()
-   for i = 3, 0, -1 do
-      r:add(preModel:get(sz - i))
+
+   -- find the inject point.
+   local pos = sz 
+   local last = true
+   while last or torch.type(preModel:get(pos)) ~= 'nn.Sequential' do
+      if torch.type(preModel:get(pos)) == 'nn.Sequential' then
+         last = false
+      end
+      pos = pos - 1
    end
-   for i = 0, 3 do
+
+   for i = pos + 1, sz do
+      r:add(preModel:get(i))
+   end
+   for i = pos + 1, sz do
       preModel:remove()
    end
 

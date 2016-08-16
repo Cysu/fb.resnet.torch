@@ -29,8 +29,10 @@ local checkpoint, optimState = checkpoints.latest(opt)
 -- Create model
 local model, criterion = models.setup(opt, checkpoint)
 
+
 -- Data loading
 local trainLoader, valLoader = DataLoader.create(opt)
+
 
 -- logfile
 if opt.logFile ~= 'none' then
