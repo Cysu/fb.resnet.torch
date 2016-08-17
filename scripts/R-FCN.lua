@@ -22,13 +22,14 @@ else
    require 'cunn';
    require 'cudnn';
    require 'nn';
+   require 'models/SequentialDropout'
 
    opt = {}
    opt.devices = '0,1,2,3,4,5,6,7'
    opt.multiFactor = '1'
    opt.nGPU = '8'
    opt.logFile = nil
-   opt.newFile = 'pretrained/RFCN.t7'
+   opt.newFile = 'pretrained/RFCN'
    opt.batchSize = '256'
    opt.nEpochs = '15'
    opt.LR = '0.001'
@@ -69,7 +70,7 @@ else
    local model = require("models/rfcn")(opt.depth, opt.multiFactor, preModel)
    print "- RFCN added."
 
-   torch.save(opt.newFile, model)
+   torch.save(opt.newFile .. '.t7', model)
    print "- RFCN model saved."
 
    -- Fine-tune
@@ -77,7 +78,7 @@ else
    "-data " .. opt.data .. " -nGPU " .. opt.nGPU .. " -nThreads 16 -batchSize " ..
    opt.batchSize .. " -depth " .. tostring(opt.depth) .. " -dropout 0.5" ..
    " -nEpochs " .. opt.nEpochs .. " -LR " .. opt.LR ..
-   " -retrain " .. opt.newFile .. ".t7"
+   " -retrain " .. opt.newFile .. ".t7 -shareGradInput true"
    if opt.logFile then
       cmd = cmd .. " -logFile " .. opt.logFile
    end

@@ -17,16 +17,16 @@ local function createModel(depth, multiFactor, preModel)
    -- add rcn after the feature maps
    local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
       local s = nn.Sequential()
-      local sOutside = nn.Sequential()
       s:add(SBatchNorm(nInputPlane))
       s:add(ReLU(true))
       -- reduce dimension
       local nMiddle = nInputPlane / 2 
       local conv0 = Convolution(nInputPlane, nMiddle, 1, 1)
       -- initialize
-      conv0.weight:normal(0, 0.01)
+      conv0.weight:normal(0, 0.001)
       conv0.bias:zero()
       s:add(conv0)
+      s:add(SBatchNorm(nMiddle))
       s:add(ReLU(true))
 
       local table = nn.ConcatTable()
@@ -49,7 +49,7 @@ local function createModel(depth, multiFactor, preModel)
             -- 1x1 Convolution
             local conv1 = Convolution(nMiddle, nOutputPlane, 1, 1)
             -- initialize
-            conv1.weight:normal(0, 0.01)
+            conv1.weight:normal(0, 0.001)
             conv1.bias:zero()
             part:add(conv1)
             part:add(Max(len3, len4, 1, 1))
@@ -60,15 +60,16 @@ local function createModel(depth, multiFactor, preModel)
       s:add(table)
       s:add(nn.CAddTable())
       -- Balance the RFCN output and fc-layer output
-      local mul = nn.Mul()
-      mul.weight:fill(0.25)
-      -- Freeze the multiplyer
-      mul.accGradParameters = function() end
-      mul.updateParameters = function() end
-      sOutside:add(s)
-      sOutside:add(mul)
-      sOutside:add(nn.View(nOutputPlane):setNumInputDims(3))
-      return sOutside
+      local mul = nn.MulConstant(0.25, true)
+      s:add(mul)
+      s:add(nn.View(nOutputPlane):setNumInputDims(3))
+
+      -- Mark R-FCN layers to avoid conflicts when share gradient.
+      s:apply(function(m)
+         m.rfcn = true 
+      end)
+
+      return s
    end
 
    local cfg = {
@@ -101,7 +102,7 @@ local function createModel(depth, multiFactor, preModel)
       preModel:remove()
    end
 
-   local s = rcn(cfg[opt.depth][2] / 2, 1000, opt.multiFactor, 14, 14)
+   local s = rcn(cfg[opt.depth] and cfg[opt.depth][2] / 2 or 1024, 1000, opt.multiFactor, 14, 14)
 
    RFCN:add(r)
    RFCN:add(s)

@@ -61,7 +61,8 @@ function M.setup(opt, checkpoint)
       local cache = {}
       model:apply(function(m)
          local moduleType = torch.type(m)
-         if torch.isTensor(m.gradInput) and moduleType ~= 'nn.ConcatTable' then
+         -- Revise these part to seperate RFCN from the frame of sharing gradient input.
+         if torch.isTensor(m.gradInput) and moduleType ~= 'nn.ConcatTable' and m.rfcn ~= true then
             local key = sharingKey(m)
             if cache[key] == nil then
                cache[key] = torch.CudaStorage(1)
@@ -70,10 +71,12 @@ function M.setup(opt, checkpoint)
          end
       end)
       for i, m in ipairs(model:findModules('nn.ConcatTable')) do
-         if cache[i % 2] == nil then
-            cache[i % 2] = torch.CudaStorage(1)
+         if m.rfcn ~= true then
+            if cache[i % 2] == nil then
+               cache[i % 2] = torch.CudaStorage(1)
+            end
+            m.gradInput = torch.CudaTensor(cache[i % 2], 1, 0)
          end
-         m.gradInput = torch.CudaTensor(cache[i % 2], 1, 0)
       end
    end
 
