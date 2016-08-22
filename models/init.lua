@@ -17,7 +17,7 @@ require 'models/SequentialDropout'
 
 local M = {}
 
-function M.setup(opt, checkpoint)
+function M.setup(opt, checkpoint, distributer)
    local model
    if checkpoint then
       local modelPath = paths.concat(opt.resume, checkpoint.modelFile)
@@ -66,6 +66,11 @@ function M.setup(opt, checkpoint)
       model:remove(#model.modules)
       model:add(linear:cuda())
    end
+
+   -- Synchronize the initialization parameters
+   local params, gradParams = model:getParameters()
+   distributer:bcastFromRoot(params)
+   distributer:bcastFromRoot(gradParams)
 
    -- Set the CUDNN flags
    if opt.cudnn == 'fastest' then

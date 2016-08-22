@@ -15,6 +15,7 @@ local models = require 'models/init'
 local Trainer = require 'train'
 local opts = require 'opts'
 local checkpoints = require 'checkpoints'
+local distributer = require 'distribute/init'
 
 torch.setdefaulttensortype('torch.FloatTensor')
 torch.setnumthreads(1)
@@ -27,13 +28,13 @@ cutorch.manualSeedAll(opt.manualSeed)
 local checkpoint, optimState = checkpoints.latest(opt)
 
 -- Create model
-local model, criterion = models.setup(opt, checkpoint)
+local model, criterion = models.setup(opt, checkpoint, distributer)
 
 -- Data loading
 local trainLoader, valLoader = DataLoader.create(opt)
 
 -- The trainer handles the training loop and evaluation on validation set
-local trainer = Trainer(model, criterion, opt, optimState)
+local trainer = Trainer(model, criterion, opt, optimState, distributer)
 
 if opt.testOnly then
    local top1Err, top5Err = trainer:test(0, valLoader)
@@ -49,17 +50,19 @@ for epoch = startEpoch, opt.nEpochs do
    local trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
 
    -- Run model on validation set
-   local testTop1, testTop5 = trainer:test(epoch, valLoader)
+   if distributer:isRoot() then
+      local testTop1, testTop5 = trainer:test(epoch, valLoader)
 
-   local bestModel = false
-   if testTop1 < bestTop1 then
-      bestModel = true
-      bestTop1 = testTop1
-      bestTop5 = testTop5
-      print(' * Best model ', testTop1, testTop5)
+      local bestModel = false
+      if testTop1 < bestTop1 then
+         bestModel = true
+         bestTop1 = testTop1
+         bestTop5 = testTop5
+         print(' * Best model ', testTop1, testTop5)
+      end
+
+      checkpoints.save(epoch, model, trainer.optimState, bestModel, opt)
    end
-
-   checkpoints.save(epoch, model, trainer.optimState, bestModel, opt)
 end
 
 print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))

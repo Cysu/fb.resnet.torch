@@ -14,7 +14,7 @@ local optim = require 'optim'
 local M = {}
 local Trainer = torch.class('resnet.Trainer', M)
 
-function Trainer:__init(model, criterion, opt, optimState)
+function Trainer:__init(model, criterion, opt, optimState, distributer)
    self.model = model
    self.criterion = criterion
    self.optimState = optimState or {
@@ -27,6 +27,7 @@ function Trainer:__init(model, criterion, opt, optimState)
    }
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
+   self.distributer = distributer
 end
 
 function Trainer:train(epoch, dataloader)
@@ -54,23 +55,32 @@ function Trainer:train(epoch, dataloader)
       self:copyInputs(sample)
 
       local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1)
+      local batchSize = output:size(1) * self.distributer:size()
       local loss = self.criterion:forward(self.model.output, self.target)
+      loss = self.distributer:averageToRoot(loss)
 
       self.model:zeroGradParameters()
       self.criterion:backward(self.model.output, self.target)
       self.model:backward(self.input, self.criterion.gradInput)
 
-      optim.sgd(feval, self.params, self.optimState)
+      self.distributer:averageToRoot(self.gradParams)
+      if self.distributer:isRoot() then
+         optim.sgd(feval, self.params, self.optimState)
+      end
+      self.distributer:bcastFromRoot(self.params)
 
       local top1, top5 = self:computeScore(output, sample.target, 1)
+      top1 = self.distributer:averageToRoot(top1)
+      top5 = self.distributer:averageToRoot(top5)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
-         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      if self.distributer:isRoot() then
+         print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
+            epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      end
 
       -- check that the storage didn't get changed do to an unfortunate getParameters call
       assert(self.params:storage() == self.model:parameters()[1]:storage())
