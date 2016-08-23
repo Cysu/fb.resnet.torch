@@ -99,10 +99,11 @@ local function createModel(opt)
       s:add(Convolution(nInputPlane,n,1,1,1,1,0,0))
       s:add(SBatchNorm(n))
       s:add(ReLU(true))
-      s:add(Convolution(n,n,3,3,stride,stride,1,1))
+      local grp = nInputPlane == n and 1 or 2
+      s:add(Convolution(n,n,3,3,stride,stride,1,1,grp))
       s:add(SBatchNorm(n))
       s:add(ReLU(true))
-      s:add(Convolution(n,n*4,1,1,1,1,0,0))
+      s:add(Convolution(n,n*4,1,1,1,1,0,0,grp))
 
       return block
          :add(nn.ConcatTable()
@@ -137,6 +138,7 @@ local function createModel(opt)
          [152] = {{3, 8, 36, 3}, 2048, bottleneck},
          [200] = {{3, 24, 36, 3}, 2048, bottleneck},
          [269] = {{3, 30, 48, 8}, 2048, bottleneck},
+         [500] = {{6, 50, 100, 10}, 2048, bottleneck},
       }
 
       assert(cfg[depth], 'Invalid depth: ' .. tostring(depth))
@@ -157,7 +159,7 @@ local function createModel(opt)
       model:add(ReLU(true))
       model:add(Avg(7, 7, 1, 1))
       model:add(nn.View(nFeatures):setNumInputDims(3))
-      model:add(nn.Linear(nFeatures, 1000))
+      model:add(nn.Linear(nFeatures, 2686))
    elseif opt.dataset == 'cifar10' then
       -- Model type specifies number of layers for CIFAR-10 model
       assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')
