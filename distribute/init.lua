@@ -16,11 +16,11 @@ function Distributer:__init()
    assert(self.size > 1, 'Must start more than one MPI processes')
 end
 
-function Distributer:rank()
+function Distributer:getRank()
    return self.rank
 end
 
-function Distributer:size()
+function Distributer:getSize()
    return self.size
 end
 
@@ -60,6 +60,10 @@ function Distributer:averageToRoot(value)
       cutorch.synchronize()
       cutorch.setDevice(prevGpuid)
    end
+end
+
+function Distributer:finalize()
+   mpi.finalize()
 end
 
 return M.Distributer()
