@@ -70,11 +70,8 @@ function Trainer:train(epoch, dataloader)
       -- 3. broadcast parameters to other machines
       -- 4. syncParameters among local GPUs
       self.distributer:averageToRoot(self.gradParams)
-      if self.distributer:isRoot() then
-         optim.sgd(feval, self.params, self.optimState)
-      end
+      optim.sgd(feval, self.params, self.optimState)
       self.distributer:bcastFromRoot(self.params)
-
       if torch.type(self.model) == 'nn.DataParallelTable' then
          self.model:syncParameters()
       end
