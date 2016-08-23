@@ -31,14 +31,16 @@ local checkpoint, optimState = checkpoints.latest(opt)
 local model, criterion = models.setup(opt, checkpoint, distributer)
 
 -- Data loading
-local trainLoader, valLoader = DataLoader.create(opt)
+local trainLoader, valLoader = DataLoader.create(opt, distributer)
 
 -- The trainer handles the training loop and evaluation on validation set
 local trainer = Trainer(model, criterion, opt, optimState, distributer)
 
 if opt.testOnly then
    local top1Err, top5Err = trainer:test(0, valLoader)
-   print(string.format(' * Results top1: %6.3f  top5: %6.3f', top1Err, top5Err))
+   if distributer:isRoot() then
+      print(string.format(' * Results top1: %6.3f  top5: %6.3f', top1Err, top5Err))
+   end
    return
 end
 
@@ -50,9 +52,9 @@ for epoch = startEpoch, opt.nEpochs do
    local trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
 
    -- Run model on validation set
-   if distributer:isRoot() then
-      local testTop1, testTop5 = trainer:test(epoch, valLoader)
+   local testTop1, testTop5 = trainer:test(epoch, valLoader)
 
+   if distributer:isRoot() then
       local bestModel = false
       if testTop1 < bestTop1 then
          bestModel = true
@@ -65,4 +67,6 @@ for epoch = startEpoch, opt.nEpochs do
    end
 end
 
-print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))
+if distributer:isRoot() then
+   print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))
+end

@@ -45,7 +45,9 @@ function Trainer:train(epoch, dataloader)
    local top1Sum, top5Sum, lossSum = 0.0, 0.0, 0.0
    local N = 0
 
-   print('=> Training epoch # ' .. epoch)
+   if self.distributer:isRoot() then
+      print('=> Training epoch # ' .. epoch)
+   end
    -- set the batch norm to training mode
    self.model:training()
    for n, sample in dataloader:run() do
@@ -55,7 +57,7 @@ function Trainer:train(epoch, dataloader)
       self:copyInputs(sample)
 
       local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1) * self.distributer:size()
+      local batchSize = output:size(1) * self.distributer:getSize()
       local loss = self.criterion:forward(self.model.output, self.target)
       loss = self.distributer:averageToRoot(loss)
 
@@ -119,24 +121,31 @@ function Trainer:test(epoch, dataloader)
       self:copyInputs(sample)
 
       local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1) / nCrops
+      local batchSize = output:size(1) / nCrops * self.distributer:getSize()
       local loss = self.criterion:forward(self.model.output, self.target)
+      loss = self.distributer:averageToRoot(loss)
 
       local top1, top5 = self:computeScore(output, sample.target, nCrops)
+      top1 = self.distributer:averageToRoot(top1)
+      top5 = self.distributer:averageToRoot(top5)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       N = N + batchSize
 
-      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      if self.distributer:isRoot() then
+         print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+            epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      end
 
       timer:reset()
       dataTimer:reset()
    end
    self.model:training()
 
-   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
-      epoch, top1Sum / N, top5Sum / N))
+   if self.distributer:isRoot() then
+      print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
+         epoch, top1Sum / N, top5Sum / N))
+   end
 
    return top1Sum / N, top5Sum / N
 end
