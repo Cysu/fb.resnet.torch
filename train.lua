@@ -63,11 +63,19 @@ function Trainer:train(epoch, dataloader)
       self.criterion:backward(self.model.output, self.target)
       self.model:backward(self.input, self.criterion.gradInput)
 
+      -- 1. average gradParams to GPU#1 of machine#0
+      -- 2. update parameters at GPU#1 of machine#0
+      -- 3. broadcast parameters to other machines
+      -- 4. syncParameters among local GPUs
       self.distributer:averageToRoot(self.gradParams)
       if self.distributer:isRoot() then
          optim.sgd(feval, self.params, self.optimState)
       end
       self.distributer:bcastFromRoot(self.params)
+
+      if torch.type(self.model) == 'nn.DataParallelTable' then
+         self.model:syncParameters()
+      end
 
       local top1, top5 = self:computeScore(output, sample.target, 1)
       top1 = self.distributer:averageToRoot(top1)
