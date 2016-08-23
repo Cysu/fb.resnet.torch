@@ -16,19 +16,20 @@ Threads.serialization('threads.sharedserialize')
 local M = {}
 local DataLoader = torch.class('resnet.DataLoader', M)
 
-function DataLoader.create(opt)
+function DataLoader.create(opt, distributer)
    -- The train and val loader
    local loaders = {}
 
    for i, split in ipairs{'train', 'val'} do
       local dataset = datasets.create(opt, split)
-      loaders[i] = M.DataLoader(dataset, opt, split)
+      loaders[i] = M.DataLoader(dataset, opt, split, distributer)
    end
 
    return table.unpack(loaders)
 end
 
-function DataLoader:__init(dataset, opt, split)
+function DataLoader:__init(dataset, opt, split, distributer)
+   -- TODO: Do we need the seed to be different on different machines?
    local manualSeed = opt.manualSeed
    local function init()
       require('datasets/' .. opt.dataset)
@@ -46,20 +47,33 @@ function DataLoader:__init(dataset, opt, split)
    local threads, sizes = Threads(opt.nThreads, init, main)
    self.nCrops = (split == 'val' and opt.tenCrop) and 10 or 1
    self.threads = threads
-   self.__size = sizes[1][1]
+   self.distributer = distributer
+   self.__size = sizes[1][1] -- total size of the dataset
+   self.__localSize = math.ceil(self.__size / distributer:getSize()) -- total size on each machine
    self.batchSize = math.floor(opt.batchSize / self.nCrops)
 end
 
 function DataLoader:size()
-   return math.ceil(self.__size / self.batchSize)
+   return math.ceil(self.__localSize / self.batchSize)
 end
 
 function DataLoader:run()
    local threads = self.threads
-   local size, batchSize = self.__size, self.batchSize
-   local perm = torch.randperm(size)
+   local size, localSize, batchSize = self.__size, self.__localSize, self.batchSize
+   local perm = torch.randperm(size):float()
+   self.distributer:bcastFromRoot(perm)
 
    local idx, sample = 1, nil
+   if self.distributer:getRank() == self.distributer:getSize() - 1 then
+      -- the last machine may overlap with the second last one to keep localSize equal
+      idx = size - localSize + 1
+      assert(idx > 0)
+   else
+      idx = self.distributer:getRank() * localSize + 1
+      size = idx + localSize - 1
+      assert(size <= self.__size)
+   end
+
    local function enqueue()
       while idx <= size and threads:acceptsjob() do
          local indices = perm:narrow(1, idx, math.min(batchSize, size - idx + 1))
