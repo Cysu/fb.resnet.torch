@@ -81,7 +81,7 @@ for epoch = startEpoch, opt.nEpochs do
    local testTop1, testTop5 = trainer:test(epoch, valLoader)
 
    local bestModel = updateBestErr(testTop1, testTop5)
-   checkpoints.save(epoch, model, trainer.optimState, bestModel)
+   checkpoints.save(epoch, model, trainer.optimState, bestModel, opt)
 end
 
 if opt.recomputeBatchNorm then

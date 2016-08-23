@@ -85,6 +85,19 @@ local function createModel(depth, multiFactor, preModel)
    local RFCN = nn.ConcatTable()
    local r = nn.Sequential()
 
+   -- preModel:apply(function(m)
+   --    m.updateParameters = function(self, lr)
+   --       -- Fix learning rate of the original model
+   --       lr = 0.0001
+   --       local params, gradParams = self:parameters()
+   --       if params then
+   --          for i = 1, #params do
+   --             params[i]:add(-lr, gradParams[i])
+   --          end
+   --       end
+   --    end
+   -- end)
+
    -- find the inject point.
    local pos = sz 
    local last = true
