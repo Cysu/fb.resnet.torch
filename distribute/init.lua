@@ -4,16 +4,13 @@ local mpi = require 'distribute/mvapich'
 local M = {}
 local Distributer = torch.class('resnet.Distributer', M)
 
-local function checkType(data)
-   assert(torch.type(data) == 'torch.FloatTensor' or
-          torch.type(data) == 'torch.CudaTensor')
-end
-
 function Distributer:__init()
    self.comm = mpi.comm_world
    self.rank = mpi.rank(self.comm)
    self.size = mpi.size(self.comm)
    assert(self.size > 1, 'Must start more than one MPI processes')
+   self.localRootDevice = 1 -- DataParallelTable uses device 1 .. nGPU and 1 is the root by default
+   self.buf = torch.CudaTensor()
 end
 
 function Distributer:getRank()
@@ -29,7 +26,9 @@ function Distributer:isRoot()
 end
 
 function Distributer:bcastFromRoot(data)
-   checkType(data)
+   assert(torch.type(data) == 'torch.CudaTensor' or
+          torch.type(data) == 'torch.FloatTensor',
+          'Only FloatTensor or CudaTensor can be broadcasted')
    cutorch.synchronize()
    mpi.bcast(torch.data(data), data:nElement(), mpi.float, 0, self.comm)
 end
@@ -43,19 +42,27 @@ function Distributer:averageToRoot(value)
                  mpi.float, mpi.sum, 0, self.comm)
       return sum[1] / self.size
    else
-      checkType(value)
+      assert(torch.type(value) == 'torch.CudaTensor' and value:dim() == 1,
+             'Only 1D CudaTensor can be reduced')
       local prevGpuid = cutorch.getDevice()
-      cutorch.setDevice(1) -- average to GPU#1 so that DPT can syncParameters to others
-      local sum = torch.type(value) == 'torch.FloatTensor' and torch.FloatTensor()
-                                                           or torch.CudaTensor() 
-      sum:resize(value:size()):zero()
+      -- set device to local root so that DPT can syncParameters to other local GPUs
+      cutorch.setDevice(self.localRootDevice)
+
+      -- resize the buffer if necessary and set it to zero
+      if self.buf:nElement() < value:nElement() then
+         self.buf:resize(value:size())
+      end
+      self.buf:zero()
       cutorch.synchronize()
+
       -- average from GPU#1 of all the machines
-      mpi.reduce(torch.data(value), torch.data(sum), value:nElement(),
+      mpi.reduce(torch.data(value), torch.data(self.buf), value:nElement(),
                  mpi.float, mpi.sum, 0, self.comm)
-      sum:div(self.size)
+      self.buf:div(self.size)
+
+      -- copy back to the root input
       if self:isRoot() then
-         value:copy(sum)
+         value:copy(self.buf)
       end
       cutorch.synchronize()
       cutorch.setDevice(prevGpuid)

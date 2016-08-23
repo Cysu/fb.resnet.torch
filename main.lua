@@ -70,3 +70,4 @@ end
 if distributer:isRoot() then
    print(string.format(' * Finished top1: %6.3f  top5: %6.3f', bestTop1, bestTop5))
 end
+distributer:finalize()
