@@ -53,8 +53,8 @@ function Distributer:averageToRoot(value)
       -- average from GPU#1 of all the machines
       cutorch.synchronize()
       local cpuData = value:float()
-      mpi.reduce(mpi.in_place, torch.data(cpuData), cpuData:nElement(),
-                 mpi.float, mpi.sum, 0, self.comm)
+      mpi.allreduce(mpi.in_place, torch.data(cpuData), cpuData:nElement(),
+                    mpi.float, mpi.sum, self.comm)
 
       -- copy back to GPU
       value:copy(cpuData)
