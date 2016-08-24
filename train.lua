@@ -66,7 +66,7 @@ function Trainer:train(epoch, dataloader)
 
       optim.sgd(feval, self.params, self.optimState)
 
-      local top1, top5 = self:computeScore(output, sample.target, 1)
+      local top1, top5 = self:computeScore(output, sample.target, 1, 1)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       lossSum = lossSum + loss*batchSize
@@ -116,7 +116,7 @@ function Trainer:test(epoch, dataloader)
       local batchSize = output:size(1) / nCrops
       local loss = self.criterion:forward(self.model.output, self.target)
 
-      local top1, top5 = self:computeScore(output, sample.target, nCrops)
+      local top1, top5 = self:computeScore(output, sample.target, nCrops, self.opt.nScales)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
       N = N + batchSize
@@ -205,13 +205,20 @@ function Trainer:recomputeBatchNorm(dataloader)
    end
 end
 
-function Trainer:computeScore(output, target, nCrops)
+function Trainer:computeScore(output, target, nCrops, nScales)
    if nCrops > 1 then
       -- Sum over crops
       output = output:view(output:size(1) / nCrops, nCrops, output:size(2))
          --:exp()
          :sum(2):squeeze(2)
    end
+
+   -- add-scale
+   if nScales > 1 then
+      output = output:view(output:size(1) / nScales, nScales, output:size(2))
+         :sum(2):squeeze(2)
+   end
+   --
 
    -- Coputes the top1 and top5 error rate
    local batchSize = output:size(1)

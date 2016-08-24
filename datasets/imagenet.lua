@@ -77,7 +77,7 @@ local pca = {
    },
 }
 
-function ImagenetDataset:preprocess()
+function ImagenetDataset:preprocess(scale)
    if self.split == 'train' then
       return t.Compose{
          t.RandomSizedCrop(224),
@@ -93,7 +93,9 @@ function ImagenetDataset:preprocess()
    elseif self.split == 'val' then
       local Crop = self.opt.tenCrop and t.TenCrop or t.CenterCrop
       return t.Compose{
-         t.Scale(256),
+         -- add-scale
+         t.Scale(scale),
+         --
          t.ColorNormalize(meanstd),
          Crop(224),
       }

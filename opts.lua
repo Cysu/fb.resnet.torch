@@ -52,6 +52,7 @@ function M.parse(arg)
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
    cmd:option('-nDilation', 1, 'Number of pixels to skip in the Dilated Convolution')
+   cmd:option('-scales', '256', 'Scales used in the test, like 224,256,288')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
@@ -62,6 +63,14 @@ function M.parse(arg)
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
    opt.recomputeBatchNorm = opt.recomputeBatchNorm ~= 'false'
+
+   -- add-scales
+   opt.scales = opt.scales:split(',')
+   for i = 1, #opt.scales do
+      opt.scales[i] = tonumber(opt.scales[i])
+   end
+   opt.nScales = #opt.scales
+   -- 
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')
