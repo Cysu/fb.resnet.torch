@@ -13,6 +13,7 @@ local optim = require 'optim'
 
 local M = {}
 local Trainer = torch.class('resnet.Trainer', M)
+local Avg = cudnn.SpatialAveragePooling
 
 function Trainer:__init(model, criterion, opt, optimState)
    self.model = model
@@ -102,32 +103,90 @@ function Trainer:test(epoch, dataloader)
    local size = dataloader:size()
 
    local nCrops = self.opt.tenCrop and 10 or 1
+   local nScales = self.opt.nScales
    local top1Sum, top5Sum = 0.0, 0.0
    local N = 0
    
    self.model:evaluate()
-   for n, sample in dataloader:run() do
-      local dataTime = dataTimer:time().real
+   
+   local scores = torch.CudaTensor()
+   local target = torch.CudaTensor(dataloader.__size):cuda()
+   scores:zeros(nScales, dataloader.__size, 1000):cuda()
 
-      -- Copy input and target to the GPU
-      self:copyInputs(sample)
+   for i = 1, nScales do
+      N = 0
+      for n, sample in dataloader:run(i) do
+         local dataTime = dataTimer:time().real
 
-      local output = self.model:forward(self.input):float()
-      local batchSize = output:size(1) / nCrops
-      local loss = self.criterion:forward(self.model.output, self.target)
+         -- Copy input and target to the GPU
+         self:copyInputs(sample) 
 
-      local top1, top5 = self:computeScore(output, sample.target, nCrops, self.opt.nScales)
-      top1Sum = top1Sum + top1*batchSize
-      top5Sum = top5Sum + top5*batchSize
-      N = N + batchSize
+         -- local output = self.model:forward(self.input):float()
+         -- local batchSize = output:size(1) / nCrops
+         local output = self.model:forward(self.input)
+         local batchSize = #output
 
-      -- Commented for log.
-      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+         -- Different types of multi-scale test.
+         if self.opt.testType == 1 then
+            for j = 1, batchSize do
+               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+               pooling:cuda()
+               output[j]:cuda()
+               output[j] = pooling:forward(output[j])
+               output[j] = output[j]:view(output[j]:size(2))
+            end
+         elseif self.opt.testType == 2 then
+            local softMax = nn.SoftMax() 
+            softMax:cuda()
+            for j = 1, batchSize do
+               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+               pooling:cuda()
+               output[j]:cuda()
+               output[j] = pooling:forward(output[j])
+               output[j] = softMax:forward(output[j])
+               output[j] = output[j]:view(output[j]:size(2))
+            end
+         else
+            local softMax = nn.SoftMax() 
+            softMax:cuda()
+            for j = 1, batchSize do
+               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+               pooling:cuda()
+               output[j]:cuda()
+               output[j] = softMax:forward(output[j]:cuda())
+               output[j] = pooling:forward(output[j])
+               output[j] = output[j]:view(output[j]:size(2))
+            end
+         end
 
-      timer:reset()
-      dataTimer:reset()
+         for j = 1, batchSize do
+            scores[i][N + j]:add(output[j])
+         end
+         if i == 1 then
+            target:narrow(1, N + 1, batchSize):copy(sample.target)
+         end
+         N = N + batchSize
+         print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f'):format(
+            i, n, size, timer:time().real, dataTime))
+         timer:reset()
+         dataTimer:reset()
+      end
+
+      -- Save scores of different scales
+      assert(not (not paths.dirp('scores') and not paths.mkdir('scores')),
+         'error: unable to create scores directory\n')
+      torch.save('scores/score_' .. tostring(self.opt.scales[i]) .. '.t7', scores[i])  
    end
+
+   local top1, top5 = self:computeScore(scores, target, nCrops, nScales)
+   top1Sum = top1 * N
+   top5Sum = top5 * N
+   -- top1Sum = top1Sum + top1*batchSize
+   -- top5Sum = top5Sum + top5*batchSize
+
+   -- print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+   --    epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+
    self.model:training()
 
    print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
@@ -206,19 +265,15 @@ function Trainer:recomputeBatchNorm(dataloader)
 end
 
 function Trainer:computeScore(output, target, nCrops, nScales)
-   if nCrops > 1 then
-      -- Sum over crops
-      output = output:view(output:size(1) / nCrops, nCrops, output:size(2))
-         --:exp()
-         :sum(2):squeeze(2)
-   end
+   -- if nCrops > 1 then
+   --    -- Sum over crops
+   --    output = output:view(output:size(1) / nCrops, nCrops, output:size(2))
+   --       --:exp()
+   --       :sum(2):squeeze(2)
+   -- end
 
-   -- add-scale
-   if nScales > 1 then
-      output = output:view(output:size(1) / nScales, nScales, output:size(2))
-         :sum(2):squeeze(2)
-   end
-   --
+   -- Sum up scores from different scales
+   output = output:sum(1):view(output:size(2), output:size(3))
 
    -- Coputes the top1 and top5 error rate
    local batchSize = output:size(1)
@@ -242,13 +297,18 @@ end
 function Trainer:copyInputs(sample)
    -- Copies the input to a CUDA tensor, if using 1 GPU, or to pinned memory,
    -- if using DataParallelTable. The target is always copied to a CUDA tensor
-   self.input = self.input or (self.opt.nGPU == 1
-      and torch.CudaTensor()
-      or cutorch.createCudaHostTensor())
-   self.target = self.target or torch.CudaTensor()
+   self.input = {}
+   for i = 1, #sample.input do
+      self.input[i] = torch.CudaTensor(1, unpack(sample.input[i]:size():totable()))
+      self.input[i]:copy(sample.input[i]):cuda()
+   end
+   -- self.input = self.input or (self.opt.nGPU == 1
+   --    and torch.CudaTensor()
+   --    or cutorch.createCudaHostTensor())
+   -- self.target = self.target or torch.CudaTensor()
 
-   self.input:resize(sample.input:size()):copy(sample.input)
-   self.target:resize(sample.target:size()):copy(sample.target)
+   -- self.input:resize(sample.input:size()):copy(sample.input)
+   -- self.target:resize(sample.target:size()):copy(sample.target)
 end
 
 function Trainer:learningRate(epoch)

@@ -9,6 +9,9 @@
 --  Multi-threaded data loader
 --
 
+require 'cudnn'
+require 'cunn'
+
 local datasets = require 'datasets/init'
 local Threads = require 'threads'
 Threads.serialization('threads.sharedserialize')
@@ -39,12 +42,14 @@ function DataLoader:__init(dataset, opt, split)
       end
       torch.setnumthreads(1)
       _G.dataset = dataset
-      -- add-scale
-      _G.preprocess = {}
-      for i, scale in ipairs(split ~= "train" and opt.scales or {256}) do 
-         _G.preprocess[i] = dataset:preprocess(scale)
+      if split == 'train' then
+         _G.preprocess = dataset:preprocess()
+      else
+         _G.preprocess = {}
+         for i = 1, opt.nScales do
+            _G.preprocess[i] = dataset:preprocess(opt.scales[i])
+         end
       end
-      --
       return dataset:size()
    end
 
@@ -52,53 +57,47 @@ function DataLoader:__init(dataset, opt, split)
    self.nCrops = (split == 'val' and opt.tenCrop) and 10 or 1
    self.threads = threads
    self.__size = sizes[1][1]
-   -- add-scales
-   self.nScales = split ~= "train" and opt.nScales or 1
-   -- 
-   self.batchSize = math.floor(opt.batchSize / self.nCrops / self.nScales)
+   self.batchSize = math.floor(opt.batchSize / self.nCrops)
+   self.perm = torch.randperm(self.__size)
 end
 
 function DataLoader:size()
    return math.ceil(self.__size / self.batchSize)
 end
 
-function DataLoader:run()
+function DataLoader:run(scaleID)
    local threads = self.threads
    local size, batchSize = self.__size, self.batchSize
-   local perm = torch.randperm(size)
+   -- local perm = torch.randperm(size)
 
    local idx, sample = 1, nil
-   local function enqueue()
+   local function enqueue(scaleID)
       while idx <= size and threads:acceptsjob() do
-         local indices = perm:narrow(1, idx, math.min(batchSize, size - idx + 1))
+         local indices = self.perm:narrow(1, idx, math.min(batchSize, size - idx + 1))
          threads:addjob(
-            function(indices, nCrops, nScales)
+            function(indices, nCrops, scaleID)
                local sz = indices:size(1)
                local batch, imageSize
                local target = torch.IntTensor(sz)
-               -- add-scale
-               sz = sz * nScales
-               local pos = 1 
-               --
                for i, idx in ipairs(indices:totable()) do
                   local sample = _G.dataset:get(idx)
                   -- add-scale
-                  for j = 1, nScales do
-                     local input = _G.preprocess[j](sample.input)
-                     if not batch then
-                        imageSize = input:size():totable()
-                        if nCrops > 1 then table.remove(imageSize, 1) end
-                        batch = torch.FloatTensor(sz, nCrops, table.unpack(imageSize))
-                     end
-                     batch[pos]:copy(input)
-                     pos = pos + 1
+                  local input = _G.preprocess[scaleID](sample.input)
+                  if not batch then 
+                     batch = {}
                   end
+                  -- if not batch then
+                  --    imageSize = input:size():totable()
+                  --    if nCrops > 1 then table.remove(imageSize, 1) end
+                  --    batch = torch.FloatTensor(sz, nCrops, table.unpack(imageSize))
+                  -- end
+                  batch[i] = torch.FloatTensor(input)
                   target[i] = sample.target
                   --
                end
                collectgarbage()
                return {
-                  input = batch:view(sz * nCrops, table.unpack(imageSize)),
+                  input = batch, --batch:view(sz * nCrops, table.unpack(imageSize)),
                   target = target,
                }
             end,
@@ -107,7 +106,7 @@ function DataLoader:run()
             end,
             indices,
             self.nCrops,
-            self.nScales
+            scaleID
          )
          idx = idx + batchSize
       end
@@ -115,7 +114,7 @@ function DataLoader:run()
 
    local n = 0
    local function loop()
-      enqueue()
+      enqueue(scaleID)
       if not threads:hasjob() then
          return nil
       end
@@ -123,7 +122,7 @@ function DataLoader:run()
       if threads:haserror() then
          threads:synchronize()
       end
-      enqueue()
+      enqueue(scaleID)
       n = n + 1
       return n, sample
    end
