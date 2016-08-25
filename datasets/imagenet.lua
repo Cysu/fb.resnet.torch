@@ -97,7 +97,7 @@ function ImagenetDataset:preprocess(scale)
          t.Scale(scale),
          --
          t.ColorNormalize(meanstd),
-         Crop(224),
+         -- Crop(224),
       }
    else
       error('invalid split: ' .. self.split)

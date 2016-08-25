@@ -53,6 +53,7 @@ function M.parse(arg)
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
    cmd:option('-nDilation', 1, 'Number of pixels to skip in the Dilated Convolution')
    cmd:option('-scales', '256', 'Scales used in the test, like 224,256,288')
+   cmd:option('-testType', 1,   'Type of multi-scale test, 1 for sum of average scores, 2 for sum of sum of softmax of average scores, 3 for sum of average softmax of scores')
    cmd:text()
 
    local opt = cmd:parse(arg or {})

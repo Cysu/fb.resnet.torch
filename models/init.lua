@@ -16,6 +16,7 @@ require 'cudnn'
 require 'models/SequentialDropout'
 
 local M = {}
+local Convolution = cudnn.SpatialConvolution
 
 function M.setup(opt, checkpoint)
    local model
@@ -32,6 +33,23 @@ function M.setup(opt, checkpoint)
       print('=> Creating model from file: models/' .. opt.netType .. '.lua')
       model = require('models/' .. opt.netType)(opt)
    end
+
+   -- Make the loaded network fully convolutional
+   local sz = model:size()
+   local fc = model:get(sz)
+   while true do
+      model:remove()
+      sz = sz - 1
+      if torch.type(model:get(sz)):find("ReLU") then break end
+   end
+   local nInputPlane = fc.weight:size(2)
+   local nOutputPlane = fc.weight:size(1)
+   local conv1 = Convolution(nInputPlane, nOutputPlane, 1, 1, 1, 1)
+   local w = fc.weight:view(nOutputPlane, nInputPlane, 1, 1) 
+   conv1.weight:copy(w)
+   conv1.bias:copy(fc.bias)
+   model:add(conv1)
+   --
 
    -- First remove any DataParallelTable
    if torch.type(model) == 'nn.DataParallelTable' then
@@ -121,8 +139,55 @@ function M.setup(opt, checkpoint)
       dpt.gradInput = nil
 
       model = dpt:cuda()
-
    end
+
+
+   -- Revise DataParallelTable, make it capable of receiving images of different sizes on GPUs. 
+   model._concatTensorRecursive = function(self, dst, src)  
+      cutorch.setDevice(self.gpuAssignments[1])
+      dst = {}
+
+      for i, ret in ipairs(src) do
+         local buff = torch.CudaTensor()
+         local sz = #ret
+         if #sz ~= 0 then
+            buff:resize(ret:size()):copy(ret)
+            dst[i] = buff
+         end
+      end
+
+      return dst 
+   end
+   model._distributeTensorRecursive = function(self, dst, src, idx, n)
+      local dst = torch.type(dst) == 'torch.CudaTensor' and dst or torch.CudaTensor()
+
+      if idx > #src then
+         dst:resize(0)
+         return dst
+      end
+
+      dst:resize(src[idx]:size()):copyAsync(src[idx])
+      -- WaitForDevices
+      if src[idx].getDevice then
+         local stream = cutorch.getStream()
+         if stream ~= 0 then
+            cutorch.streamWaitForMultiDevice(dst:getDevice(), stream, {[src[idx]:getDevice()] = {stream} })
+         end
+      end
+      return dst
+   end
+
+   -- DEBUG
+   -- tin = {}
+   -- tin[1] = torch.Tensor(1, 3, 224, 224):cuda()
+   -- tin[2] = torch.Tensor(1, 3, 223, 223):cuda()
+   -- tin[3] = torch.Tensor(1, 3, 256, 256):cuda()
+   -- tin[4] = torch.Tensor(1, 3, 256, 224):cuda()
+   -- tin[5] = torch.Tensor(1, 3, 224, 224):cuda()
+   -- tin[6] = torch.Tensor(1, 3, 223, 223):cuda()
+   -- tin[7] = torch.Tensor(1, 3, 256, 256):cuda()
+   -- local tst = model:forward(tin)
+   --
 
    local criterion = nn.CrossEntropyCriterion():cuda()
    return model, criterion
