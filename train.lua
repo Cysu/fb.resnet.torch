@@ -111,10 +111,13 @@ function Trainer:test(epoch, dataloader)
    
    local scores = torch.CudaTensor()
    local target = torch.CudaTensor(dataloader.__size):cuda()
-   scores:zeros(nScales, dataloader.__size, 1000):cuda()
+   -- scores:zeros(nScales, dataloader.__size, 1000):cuda()
 
    for i = 1, nScales do
       N = 0
+      -- For saveing
+      scores = {}
+      --
       for n, sample in dataloader:run(i) do
          local dataTime = dataTimer:time().real
 
@@ -127,41 +130,47 @@ function Trainer:test(epoch, dataloader)
          local batchSize = #output
 
          -- Different types of multi-scale test.
-         if self.opt.testType == 1 then
-            for j = 1, batchSize do
-               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
-               pooling:cuda()
-               output[j]:cuda()
-               output[j] = pooling:forward(output[j])
-               output[j] = output[j]:view(output[j]:size(2))
-            end
-         elseif self.opt.testType == 2 then
-            local softMax = nn.SoftMax() 
-            softMax:cuda()
-            for j = 1, batchSize do
-               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
-               pooling:cuda()
-               output[j]:cuda()
-               output[j] = pooling:forward(output[j])
-               output[j] = softMax:forward(output[j])
-               output[j] = output[j]:view(output[j]:size(2))
-            end
-         else
-            local softMax = nn.SoftMax() 
-            softMax:cuda()
-            for j = 1, batchSize do
-               local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
-               pooling:cuda()
-               output[j]:cuda()
-               output[j] = softMax:forward(output[j]:cuda())
-               output[j] = pooling:forward(output[j])
-               output[j] = output[j]:view(output[j]:size(2))
-            end
-         end
+         -- if self.opt.testType == 1 then
+         --    for j = 1, batchSize do
+         --       local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+         --       pooling:cuda()
+         --       output[j]:cuda()
+         --       output[j] = pooling:forward(output[j])
+         --       output[j] = output[j]:view(output[j]:size(2))
+         --    end
+         -- elseif self.opt.testType == 2 then
+         --    local softMax = nn.SoftMax() 
+         --    softMax:cuda()
+         --    for j = 1, batchSize do
+         --       local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+         --       pooling:cuda()
+         --       output[j]:cuda()
+         --       output[j] = pooling:forward(output[j])
+         --       output[j] = softMax:forward(output[j])
+         --       output[j] = output[j]:view(output[j]:size(2))
+         --    end
+         -- else
+         --    local softMax = nn.SoftMax() 
+         --    softMax:cuda()
+         --    for j = 1, batchSize do
+         --       local pooling = Avg(output[j]:size(4), output[j]:size(3), 1, 1)
+         --       pooling:cuda()
+         --       output[j]:cuda()
+         --       output[j] = softMax:forward(output[j]:cuda())
+         --       output[j] = pooling:forward(output[j])
+         --       output[j] = output[j]:view(output[j]:size(2))
+         --    end
+         -- end
 
+         -- for j = 1, batchSize do
+         --    scores[i][N + j]:add(output[j])
+         -- end
+         -- for saving
          for j = 1, batchSize do
-            scores[i][N + j]:add(output[j])
+            scores[N + j] = output[j]:double()
          end
+         -- 
+
          if i == 1 then
             target:narrow(1, N + 1, batchSize):copy(sample.target)
          end
@@ -175,8 +184,16 @@ function Trainer:test(epoch, dataloader)
       -- Save scores of different scales
       assert(not (not paths.dirp('scores') and not paths.mkdir('scores')),
          'error: unable to create scores directory\n')
-      torch.save('scores/score_' .. tostring(self.opt.scales[i]) .. '.t7', scores[i])  
+      -- For saving
+      torch.save('scores/scores_' .. tostring(self.opt.scales[i]) .. '.t7', scores)
+      --
+      -- torch.save('scores/score_' .. tostring(self.opt.scales[i]) .. '.t7', scores[i])  
    end
+
+   -- For saving
+   torch.save('scores/target.t7', target:double())
+   os.exit(0)
+   --
 
    local top1, top5 = self:computeScore(scores, target, nCrops, nScales)
    top1Sum = top1 * N

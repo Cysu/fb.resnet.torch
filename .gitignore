@@ -8,4 +8,4 @@ checkpoints*
 pretrained/*.t7
 *visual*
 pretrained/MemUsage/
-scores/
+scores*/
