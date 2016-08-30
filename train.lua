@@ -43,6 +43,7 @@ function Trainer:train(epoch, dataloader)
    local trainSize = dataloader:size()
    local top1Sum, top5Sum, lossSum = 0.0, 0.0, 0.0
    local N = 0
+   local innerIter = 0
 
    print('=> Training epoch # ' .. epoch)
    -- set the batch norm to training mode
@@ -57,11 +58,21 @@ function Trainer:train(epoch, dataloader)
       local batchSize = output:size(1)
       local loss = self.criterion:forward(self.model.output, self.target)
 
-      self.model:zeroGradParameters()
+      if innerIter == 0 then
+         self.model:zeroGradParameters()
+      end
       self.criterion:backward(self.model.output, self.target)
       self.model:backward(self.input, self.criterion.gradInput)
+      innerIter = innerIter + 1
 
-      optim.sgd(feval, self.params, self.optimState)
+      if innerIter == self.opt.iterSize or n == trainSize then
+         -- divide grads by innerIter
+         if innerIter > 1 then
+            self.gradParams:div(innerIter)
+         end
+         optim.sgd(feval, self.params, self.optimState)
+         innerIter = 0
+      end
 
       local top1, top5 = self:computeScore(output, sample.target, 1)
       top1Sum = top1Sum + top1*batchSize

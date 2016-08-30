@@ -137,6 +137,7 @@ local function createModel(opt)
          [152] = {{3, 8, 36, 3}, 2048, bottleneck},
          [200] = {{3, 24, 36, 3}, 2048, bottleneck},
          [269] = {{3, 30, 48, 8}, 2048, bottleneck},
+         [500] = {{6, 50, 100, 10}, 2048, bottleneck},
       }
 
       assert(cfg[depth], 'Invalid depth: ' .. tostring(depth))
