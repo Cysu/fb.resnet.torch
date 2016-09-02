@@ -125,6 +125,42 @@ local function createModel(opt)
       return s
    end
 
+   -- RCN-Regional Convolutional Network
+   local function rcn(nInputPlane, nOutputPlane, multiFactor, w, h)
+      local s = nn.Sequential()
+      local nMiddle = nInputPlane / 2
+      s:add(Convolution(nInputPlane, nMiddle, 1, 1))
+      s:add(ReLU(true))
+      local table = nn.ConcatTable()
+      local len3 = math.ceil(w / multiFactor)
+      local len4 = math.ceil(h / multiFactor)
+      -- build the n-part layer
+      for i = 0, multiFactor - 1 do
+         for j = 0, multiFactor - 1 do
+            local part = nn.Sequential()
+            local offset3 = math.floor(i * w / multiFactor) + 1
+            if offset3 + len3 > w + 1 then
+               offset3 = w - len3 + 1
+            end
+            local offset4 = math.floor(j * h / multiFactor) + 1
+            if offset4 + len4 > h + 1 then
+               offset4 = w - len4 + 1
+            end
+            part:add(nn.Narrow(3, offset3, len3))
+            part:add(nn.Narrow(4, offset4, len4))
+            -- 1x1 Convolution
+            part:add(Convolution(nInputPlane, nOutputPlane, 1, 1))
+            part:add(Max(len3, len4, 1, 1))
+            table:add(part)
+         end
+      end
+
+      s:add(table)
+      s:add(nn.CAddTable())
+      s:add(nn.View(nOutputPlane):setNumInputDims(3))
+      return s
+   end
+
    local model = nn.Sequential()
    if opt.dataset == 'imagenet' then
       -- Configurations for ResNet:
@@ -155,17 +191,20 @@ local function createModel(opt)
       model:add(layer(block, 512, def[4], 2))
       model:add(ShareGradInput(SBatchNorm(iChannels), 'last'))
       model:add(ReLU(true))
-      model:add(Avg(7, 7, 1, 1))
-      model:add(nn.View(nFeatures):setNumInputDims(3))
-      model:add(nn.Linear(nFeatures, 1000))
-   elseif opt.dataset == 'cifar10' then
-      -- Model type specifies number of layers for CIFAR-10 model
+      if opt.multiFactor == 1 then
+         model:add(Avg(7, 7, 1, 1))
+         model:add(nn.View(nFeatures):setNumInputDims(3))
+         model:add(nn.Linear(nFeatures, 1000))
+      else
+         model:add(rcn(nFeatures, 1000, opt.multiFactor, 7, 7))
+      end
+   elseif opt.dataset == 'cifar10' or opt.dataset == 'cifar100' then
       assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')
       local n = (depth - 2) / 6
       iChannels = 16
-      print(' | ResNet-' .. depth .. ' CIFAR-10')
+      print(' | ResNet-' .. depth .. ' CIFAR')
 
-      -- The ResNet CIFAR-10 model
+      -- The ResNet CIFAR model
       model:add(Convolution(3,16,3,3,1,1,1,1))
       model:add(layer(basicblock, 16, n, 1))
       model:add(layer(basicblock, 32, n, 2))
@@ -174,7 +213,8 @@ local function createModel(opt)
       model:add(ReLU(true))
       model:add(Avg(8, 8, 1, 1))
       model:add(nn.View(64):setNumInputDims(3))
-      model:add(nn.Linear(64, 10))
+      local nClasses = opt.dataset == 'cifar10' and 10 or 100
+      model:add(nn.Linear(64, nClasses))
    else
       error('invalid dataset: ' .. opt.dataset)
    end
@@ -182,7 +222,11 @@ local function createModel(opt)
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
          local n = v.kW*v.kH*v.nOutputPlane
-         v.weight:normal(0,math.sqrt(2/n))
+         if v.nOutputPlane == 10 or v.nOutputPlane == 1000 or (v.nInputPlane == 320 and v.nOutputPlane == 160) or (v.nInputPlane == 2048 and v.nOutputPlane == 1024) then
+            v.weight:normal(0,0.01)
+         else
+            v.weight:normal(0,math.sqrt(2/n))
+         end
          if cudnn.version >= 4000 then
             v.bias = nil
             v.gradBias = nil
@@ -205,6 +249,11 @@ local function createModel(opt)
    BNInit('nn.SpatialBatchNormalization')
    for k,v in pairs(model:findModules('nn.Linear')) do
       v.bias:zero()
+      if v.nOutputPlane == 10 or v.nOutputPlane == 1000 then
+         v.weight:normal(0,0.01)
+      else
+         v.weight:fill(1)
+      end
    end
    model:cuda()
 

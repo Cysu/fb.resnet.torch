@@ -1,8 +1,3 @@
---
---  Copyright (c) 2016, Facebook, Inc.
---  All rights reserved.
---
---  This source code is licensed under the BSD-style license found in the
 --  LICENSE file in the root directory of this source tree. An additional grant
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
@@ -17,18 +12,20 @@ function M.parse(arg)
    cmd:text('Options:')
     ------------ General options --------------------
    cmd:option('-data',       '',         'Path to dataset')
-   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10')
+   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10 | cifar100')
    cmd:option('-manualSeed', 0,          'Manually set RNG seed')
    cmd:option('-nGPU',       1,          'Number of GPUs to use by default')
+   cmd:option('-startGPU',   1,          'The number of the start point of GPU groups.')
    cmd:option('-backend',    'cudnn',    'Options: cudnn | cunn')
    cmd:option('-cudnn',      'fastest',  'Options: fastest | default | deterministic')
    cmd:option('-gen',        'gen',      'Path to save generated files')
+   cmd:option('-logFile',    'none',     'File to record trainig')
    ------------- Data options ------------------------
    cmd:option('-nThreads',        2, 'number of data loading threads')
    ------------- Training options --------------------
-   cmd:option('-nEpochs',         0,       'Number of total epochs to run')
+   cmd:option('-nEpochs',         200,       'Number of total epochs to run')
    cmd:option('-epochNumber',     1,       'Manual epoch number (useful on restarts)')
-   cmd:option('-batchSize',       32,      'mini-batch size (1 = pure stochastic)')
+   cmd:option('-batchSize',       128,      'mini-batch size (1 = pure stochastic)')
    cmd:option('-testOnly',        'false', 'Run on validation set only')
    cmd:option('-tenCrop',         'false', 'Ten-crop testing')
    ------------- Checkpointing options ---------------
@@ -40,18 +37,23 @@ function M.parse(arg)
    cmd:option('-weightDecay',        1e-4,    'weight decay')
    cmd:option('-recomputeBatchNorm', 'false', 'recompute batch norm statistics')
    ---------- Model options ----------------------------------
-   cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
-   cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
+   cmd:option('-netType',      'wrn',    'Options: resnet | preresnet | wrn')
+   cmd:option('-depth',        28,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
    cmd:option('-shortcutType', '',       'Options: A | B | C')
    cmd:option('-dropMode',     '',       'Options: const | lindecay')
    cmd:option('-dropRate',     0,        'The dropout rate of the last residual block')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
+   cmd:option('-dropout',      0,      'Dropout ratio')
+   cmd:option('-widen_factor', 10,       'Widen factor')
    ---------- Model options ----------------------------------
    cmd:option('-shareGradInput',  'false', 'Share gradInput tensors to reduce memory usage')
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
+   cmd:option('-nDilation', 1, 'Number of pixels to skip in the Dilated Convolution')
+   cmd:option('-scales', '256', 'Scales used in the test, like 224,256,288')
+   cmd:option('-testType', 1,   'Type of multi-scale test, 1 for sum of average scores, 2 for sum of sum of softmax of average scores, 3 for sum of average softmax of scores')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
@@ -62,6 +64,14 @@ function M.parse(arg)
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
    opt.recomputeBatchNorm = opt.recomputeBatchNorm ~= 'false'
+
+   -- add-scales
+   opt.scales = opt.scales:split(',')
+   for i = 1, #opt.scales do
+      opt.scales[i] = tonumber(opt.scales[i])
+   end
+   opt.nScales = #opt.scales
+   -- 
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')
@@ -79,9 +89,13 @@ function M.parse(arg)
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
       opt.nEpochs = opt.nEpochs == 0 and 120 or opt.nEpochs
    elseif opt.dataset == 'cifar10' then
-      -- Default shortcutType=A and nEpochs=164
+      -- Default shortcutType=A and nEpochs=200
       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
+      opt.nEpochs = opt.nEpochs == 0 and 200 or opt.nEpochs
+   elseif opt.dataset == 'cifar100' then
+       -- Default shortcutType=A and nEpochs=164
+       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
+       opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
    else
       cmd:error('unknown dataset: ' .. opt.dataset)
    end
