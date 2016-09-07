@@ -80,7 +80,7 @@ function Trainer:train(epoch, dataloader)
       lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
+      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.3f  top1 %7.3f  top5 %7.3f'):format(
          epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
 
       -- check that the storage didn't get changed do to an unfortunate getParameters call
@@ -101,7 +101,7 @@ function Trainer:test(epoch, dataloader)
    local size = dataloader:size()
 
    local nCrops = self.opt.tenCrop and 10 or 1
-   local top1Sum, top5Sum = 0.0, 0.0
+   local top1Sum, top5Sum, lossSum = 0.0, 0.0, 0.0
    local N = 0
 
    self.model:evaluate()
@@ -118,20 +118,21 @@ function Trainer:test(epoch, dataloader)
       local top1, top5 = self:computeScore(output, sample.target, nCrops)
       top1Sum = top1Sum + top1*batchSize
       top5Sum = top5Sum + top5*batchSize
+      lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
-      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.3f (%1.3f)  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+         epoch, n, size, timer:time().real, dataTime, loss, lossSum / N, top1, top1Sum / N, top5, top5Sum / N))
 
       timer:reset()
       dataTimer:reset()
    end
    self.model:training()
 
-   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
-      epoch, top1Sum / N, top5Sum / N))
+   print((' * Finished epoch # %d     Err: %1.3f  top1: %7.3f  top5: %7.3f\n'):format(
+      epoch, lossSum / N, top1Sum / N, top5Sum / N))
 
-   return top1Sum / N, top5Sum / N
+   return top1Sum / N, top5Sum / N, lossSum / N
 end
 
 function Trainer:computeScore(output, target, nCrops)
