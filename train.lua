@@ -96,6 +96,8 @@ function Trainer:test(epoch, dataloader)
    local top1Sum, top5Sum = 0.0, 0.0
    local N = 0
 
+   local scores = {}
+
    self.model:evaluate()
    for n, sample in dataloader:run() do
       local dataTime = dataTimer:time().real
@@ -104,6 +106,8 @@ function Trainer:test(epoch, dataloader)
       self:copyInputs(sample)
 
       local output = self.model:forward(self.input):float()
+      scores[n] = output
+
       local batchSize = output:size(1) / nCrops
       local loss = self.criterion:forward(self.model.output, self.target)
 
@@ -120,10 +124,15 @@ function Trainer:test(epoch, dataloader)
    end
    self.model:training()
 
+   scores = nn.JoinTable(1):forward(scores)
+   if nCrops > 1 then
+      scores = scores:view(scores:size(1) / nCrops, nCrops, scores:size(2))
+   end
+
    print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
       epoch, top1Sum / N, top5Sum / N))
 
-   return top1Sum / N, top5Sum / N
+   return top1Sum / N, top5Sum / N, scores
 end
 
 function Trainer:recomputeBatchNorm(dataloader)

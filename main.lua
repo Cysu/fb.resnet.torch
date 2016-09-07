@@ -38,16 +38,16 @@ local trainer = Trainer(model, criterion, opt, optimState)
 if opt.testOnly then
    if opt.recomputeBatchNorm then
       trainer:recomputeBatchNorm(trainLoader)
+      -- Save the model
+      if torch.type(model) == 'nn.DataParallelTable' then
+         model = model:get(1)
+      end
+      model = model:float():clearState()
+      torch.save(paths.concat(opt.save, 'model_recomputebn.t7'), model)
    end
-   local top1Err, top5Err = trainer:test(0, valLoader)
+   local top1Err, top5Err, scores = trainer:test(0, valLoader)
+   torch.save(paths.concat(opt.save, ('scores-%d.t7'):format(opt.testScale)), scores)
    print(string.format(' * Results top1: %6.3f  top5: %6.3f', top1Err, top5Err))
-
-   -- Save the model
-   if torch.type(model) == 'nn.DataParallelTable' then
-      model = model:get(1)
-   end
-   model = model:float():clearState()
-   torch.save('model_recomputebn.t7', model)
    return
 end
 

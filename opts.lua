@@ -31,6 +31,7 @@ function M.parse(arg)
    cmd:option('-batchSize',       32,      'mini-batch size (1 = pure stochastic)')
    cmd:option('-testOnly',        'false', 'Run on validation set only')
    cmd:option('-tenCrop',         'false', 'Ten-crop testing')
+   cmd:option('-testScale',       256,     'Ten-crop testing')
    ------------- Checkpointing options ---------------
    cmd:option('-save',            'checkpoints', 'Directory in which to save checkpoints')
    cmd:option('-resume',          'none',        'Resume from the latest checkpoint in this directory')

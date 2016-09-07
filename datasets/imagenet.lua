@@ -60,7 +60,8 @@ function ImagenetDataset:_loadImage(path)
 end
 
 function ImagenetDataset:size()
-   return self.imageInfo.imageClass:size(1)
+   --return self.imageInfo.imageClass:size(1)
+   return 1024
 end
 
 -- Computed from random subset of ImageNet training images
@@ -77,7 +78,7 @@ local pca = {
    },
 }
 
-function ImagenetDataset:preprocess()
+function ImagenetDataset:preprocess(scale)
    if self.split == 'train' then
       return t.Compose{
          t.RandomSizedCrop(224),
@@ -90,10 +91,10 @@ function ImagenetDataset:preprocess()
          t.ColorNormalize(meanstd),
          t.HorizontalFlip(0.5),
       }
-   elseif self.split == 'val' then
+   elseif self.split == 'val' or self.split == 'test' then
       local Crop = self.opt.tenCrop and t.TenCrop or t.CenterCrop
       return t.Compose{
-         t.Scale(256),
+         t.Scale(scale),
          t.ColorNormalize(meanstd),
          Crop(224),
       }

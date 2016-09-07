@@ -39,7 +39,7 @@ function DataLoader:__init(dataset, opt, split)
       end
       torch.setnumthreads(1)
       _G.dataset = dataset
-      _G.preprocess = dataset:preprocess()
+      _G.preprocess = dataset:preprocess(opt.testScale)
       return dataset:size()
    end
 
@@ -48,6 +48,7 @@ function DataLoader:__init(dataset, opt, split)
    self.threads = threads
    self.__size = sizes[1][1]
    self.batchSize = math.floor(opt.batchSize / self.nCrops)
+   self.split = split
 end
 
 function DataLoader:size()
@@ -57,7 +58,7 @@ end
 function DataLoader:run()
    local threads = self.threads
    local size, batchSize = self.__size, self.batchSize
-   local perm = torch.randperm(size)
+   local perm = self.split == 'train' and torch.randperm(size) or torch.range(1, size)
 
    local idx, sample = 1, nil
    local function enqueue()
