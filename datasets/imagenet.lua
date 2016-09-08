@@ -32,6 +32,7 @@ function ImagenetDataset:get(i)
    local class = self.imageInfo.imageClass[i]
 
    return {
+      path = path,
       input = image,
       target = class,
    }
@@ -60,8 +61,7 @@ function ImagenetDataset:_loadImage(path)
 end
 
 function ImagenetDataset:size()
-   --return self.imageInfo.imageClass:size(1)
-   return 1024
+   return self.imageInfo.imageClass:size(1)
 end
 
 -- Computed from random subset of ImageNet training images

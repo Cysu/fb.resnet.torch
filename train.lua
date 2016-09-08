@@ -97,6 +97,7 @@ function Trainer:test(epoch, dataloader)
    local N = 0
 
    local scores = {}
+   local paths = {}
 
    self.model:evaluate()
    for n, sample in dataloader:run() do
@@ -107,6 +108,9 @@ function Trainer:test(epoch, dataloader)
 
       local output = self.model:forward(self.input):float()
       scores[n] = output
+      for i = 1, #sample.path do
+         table.insert(paths, sample.path[i])
+      end
 
       local batchSize = output:size(1) / nCrops
       local loss = self.criterion:forward(self.model.output, self.target)
@@ -132,7 +136,7 @@ function Trainer:test(epoch, dataloader)
    print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
       epoch, top1Sum / N, top5Sum / N))
 
-   return top1Sum / N, top5Sum / N, scores
+   return top1Sum / N, top5Sum / N, {scores = scores, paths = paths}
 end
 
 function Trainer:recomputeBatchNorm(dataloader)

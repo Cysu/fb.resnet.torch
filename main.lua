@@ -44,6 +44,7 @@ if opt.testOnly then
       end
       model = model:float():clearState()
       torch.save(paths.concat(opt.save, 'model_recomputebn.t7'), model)
+      return
    end
    local top1Err, top5Err, scores = trainer:test(0, valLoader)
    torch.save(paths.concat(opt.save, ('scores-%d.t7'):format(opt.testScale)), scores)
