@@ -106,12 +106,13 @@ local ret = {}
 local norm = #opt.scoreFiles
 for k, v in pairs(ensemble) do
   v = v:view(1, v:size(1))
+  v = torch.div(v, norm)
   k = paths.basename(k, '.JPEG')
   local index = opt.path2index[k]
   if ret[index] then
     assert(torch.abs(ret[index] - v):max() < 1e-5)
   else
-    ret[index] = torch.div(v, norm)
+    ret[index] = v
   end
 end
 ret = nn.JoinTable(1):forward(ret)
