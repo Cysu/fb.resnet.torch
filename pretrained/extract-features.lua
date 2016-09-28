@@ -38,7 +38,7 @@ local list_of_filenames = {}
 local batch_size = 1
 
 if not paths.filep(arg[1]) then
-    io.stderr:write('Model file not found at ' .. f .. '\n')
+    io.stderr:write('Model file not found at ' .. arg[1] .. '\n')
     os.exit(1)
 end
     
@@ -72,7 +72,7 @@ local number_of_files = #list_of_filenames
 if batch_size > number_of_files then batch_size = number_of_files end
 
 -- Load the model
-local model = torch.load(arg[1])
+local model = torch.load(arg[1]):cuda()
 
 -- Remove the fully connected layer
 assert(torch.type(model:get(#model.modules)) == 'nn.Linear')
