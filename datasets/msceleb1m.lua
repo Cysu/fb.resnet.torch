@@ -81,12 +81,12 @@ function MSCeleb1MDataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
          t.RandomSizedCrop(224),
-         --t.ColorJitter({
-         --   brightness = 0.4,
-         --   contrast = 0.4,
-         --   saturation = 0.4,
-         --}),
-         --t.Lighting(0.1, pca.eigval, pca.eigvec),
+         t.ColorJitter({
+            brightness = 0.4,
+            contrast = 0.4,
+            saturation = 0.4,
+         }),
+         t.Lighting(0.1, pca.eigval, pca.eigvec),
          t.ColorNormalize(meanstd),
          t.HorizontalFlip(0.5),
       }

@@ -160,7 +160,6 @@ local function createModel(opt)
       model:add(nn.View(nFeatures):setNumInputDims(3))
       model:add(nn.Linear(nFeatures, 256))
       model:add(nn.Linear(256, 99863))
-      model:add(nn.LogSoftMax())
    else
       error('invalid dataset: ' .. opt.dataset)
    end
