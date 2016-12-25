@@ -135,7 +135,7 @@ function M.RandomSizedCrop(size)
       local attempt = 0
       repeat
          local area = input:size(2) * input:size(3)
-         local targetArea = torch.uniform(0.08, 1.0) * area
+         local targetArea = torch.uniform(0.64, 1.0) * area
 
          local aspectRatio = torch.uniform(3/4, 4/3)
          local w = torch.round(math.sqrt(targetArea * aspectRatio))

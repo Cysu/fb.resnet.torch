@@ -15,9 +15,9 @@ local t = require 'datasets/transforms'
 local ffi = require 'ffi'
 
 local M = {}
-local ImagenetDataset = torch.class('resnet.ImagenetDataset', M)
+local MSCeleb1MDataset = torch.class('resnet.MSCeleb1MDataset', M)
 
-function ImagenetDataset:__init(imageInfo, opt, split)
+function MSCeleb1MDataset:__init(imageInfo, opt, split)
    self.imageInfo = imageInfo[split]
    self.opt = opt
    self.split = split
@@ -25,7 +25,7 @@ function ImagenetDataset:__init(imageInfo, opt, split)
    assert(paths.dirp(self.dir), 'directory does not exist: ' .. self.dir)
 end
 
-function ImagenetDataset:get(i)
+function MSCeleb1MDataset:get(i)
    local path = ffi.string(self.imageInfo.imagePath[i]:data())
 
    local image = self:_loadImage(paths.concat(self.dir, path))
@@ -37,7 +37,7 @@ function ImagenetDataset:get(i)
    }
 end
 
-function ImagenetDataset:_loadImage(path)
+function MSCeleb1MDataset:_loadImage(path)
    local ok, input = pcall(function()
       return image.load(path, 3, 'float')
    end)
@@ -59,14 +59,14 @@ function ImagenetDataset:_loadImage(path)
    return input
 end
 
-function ImagenetDataset:size()
+function MSCeleb1MDataset:size()
    return self.imageInfo.imageClass:size(1)
 end
 
 -- Computed from random subset of ImageNet training images
 local meanstd = {
-   mean = { 0.485, 0.456, 0.406 },
-   std = { 0.229, 0.224, 0.225 },
+   mean = { 0.4902, 0.4234, 0.3874 },
+   std = { 0.2905, 0.2776, 0.2811 },
 }
 local pca = {
    eigval = torch.Tensor{ 0.2175, 0.0188, 0.0045 },
@@ -77,16 +77,16 @@ local pca = {
    },
 }
 
-function ImagenetDataset:preprocess()
+function MSCeleb1MDataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
          t.RandomSizedCrop(224),
-         t.ColorJitter({
-            brightness = 0.4,
-            contrast = 0.4,
-            saturation = 0.4,
-         }),
-         t.Lighting(0.1, pca.eigval, pca.eigvec),
+         --t.ColorJitter({
+         --   brightness = 0.4,
+         --   contrast = 0.4,
+         --   saturation = 0.4,
+         --}),
+         --t.Lighting(0.1, pca.eigval, pca.eigvec),
          t.ColorNormalize(meanstd),
          t.HorizontalFlip(0.5),
       }
@@ -102,4 +102,4 @@ function ImagenetDataset:preprocess()
    end
 end
 
-return M.ImagenetDataset
+return M.MSCeleb1MDataset

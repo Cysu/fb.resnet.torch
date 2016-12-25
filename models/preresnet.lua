@@ -126,7 +126,7 @@ local function createModel(opt)
    end
 
    local model = nn.Sequential()
-   if opt.dataset == 'imagenet' then
+   if opt.dataset == 'msceleb1m' then
       -- Configurations for ResNet:
       --  num. residual blocks, num features, residual block function
       local cfg = {
@@ -143,7 +143,7 @@ local function createModel(opt)
       assert(cfg[depth], 'Invalid depth: ' .. tostring(depth))
       local def, nFeatures, block = table.unpack(cfg[depth])
       iChannels = 64
-      print(' | ResNet-' .. depth .. ' ImageNet')
+      print(' | ResNet-' .. depth .. ' MS-Celeb-1M')
 
       -- The ResNet ImageNet model
       model:add(Convolution(3,64,7,7,2,2,3,3))
@@ -158,41 +158,9 @@ local function createModel(opt)
       model:add(ReLU(true))
       model:add(Avg(7, 7, 1, 1))
       model:add(nn.View(nFeatures):setNumInputDims(3))
-      model:add(nn.Linear(nFeatures, 1000))
-   elseif opt.dataset == 'cifar10' then
-      -- Model type specifies number of layers for CIFAR-10 model
-      assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')
-      local n = (depth - 2) / 6
-      iChannels = 16
-      print(' | ResNet-' .. depth .. ' CIFAR-10')
-
-      -- The ResNet CIFAR-10 model
-      model:add(Convolution(3,16,3,3,1,1,1,1))
-      model:add(layer(basicblock, 16, n, 1))
-      model:add(layer(basicblock, 32, n, 2))
-      model:add(layer(basicblock, 64, n, 2))
-      model:add(ShareGradInput(SBatchNorm(iChannels), 'last'))
-      model:add(ReLU(true))
-      model:add(Avg(8, 8, 1, 1))
-      model:add(nn.View(64):setNumInputDims(3))
-      model:add(nn.Linear(64, 10))
-   elseif opt.dataset == 'cifar100' then
-      -- Model type specifies number of layers for CIFAR-100 model
-      assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')
-      local n = (depth - 2) / 6
-      iChannels = 16
-      print(' | ResNet-' .. depth .. ' CIFAR-100')
-
-      -- The ResNet CIFAR-100 model
-      model:add(Convolution(3,16,3,3,1,1,1,1))
-      model:add(layer(basicblock, 16, n, 1))
-      model:add(layer(basicblock, 32, n, 2))
-      model:add(layer(basicblock, 64, n, 2))
-      model:add(ShareGradInput(SBatchNorm(iChannels), 'last'))
-      model:add(ReLU(true))
-      model:add(Avg(8, 8, 1, 1))
-      model:add(nn.View(64):setNumInputDims(3))
-      model:add(nn.Linear(64, 100))
+      model:add(nn.Linear(nFeatures, 256))
+      model:add(nn.Linear(256, 99863))
+      model:add(nn.LogSoftMax())
    else
       error('invalid dataset: ' .. opt.dataset)
    end

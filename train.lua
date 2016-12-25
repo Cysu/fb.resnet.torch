@@ -113,7 +113,7 @@ function Trainer:test(epoch, dataloader)
 
       local output = self.model:forward(self.input):float()
       local batchSize = output:size(1) / nCrops
-      local loss = self.criterion:forward(self.model.output, self.target)
+      local loss = self.criterion:forward(output, self.target)
 
       local top1, top5 = self:computeScore(output, sample.target, nCrops)
       top1Sum = top1Sum + top1*batchSize
@@ -176,12 +176,8 @@ end
 function Trainer:learningRate(epoch)
    -- Training schedule
    local decay = 0
-   if self.opt.dataset == 'imagenet' then
-      decay = math.floor((epoch - 1) / 40)
-   elseif self.opt.dataset == 'cifar10' then
-      decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
-   elseif self.opt.dataset == 'cifar100' then
-      decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
+   if self.opt.dataset == 'msceleb1m' then
+      decay = math.floor((epoch - 1) / 9)
    end
    return self.opt.LR * math.pow(0.1, decay)
 end

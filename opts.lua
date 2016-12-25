@@ -17,7 +17,7 @@ function M.parse(arg)
    cmd:text('Options:')
     ------------ General options --------------------
    cmd:option('-data',       '',         'Path to dataset')
-   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10 | cifar100')
+   cmd:option('-dataset',    'msceleb1m', 'Options: msceleb1m')
    cmd:option('-manualSeed', 0,          'Manually set RNG seed')
    cmd:option('-nGPU',       1,          'Number of GPUs to use by default')
    cmd:option('-backend',    'cudnn',    'Options: cudnn | cunn')
@@ -66,25 +66,17 @@ function M.parse(arg)
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')
    end
 
-   if opt.dataset == 'imagenet' then
+   if opt.dataset == 'msceleb1m' then
       -- Handle the most common case of missing -data flag
       local trainDir = paths.concat(opt.data, 'train')
       if not paths.dirp(opt.data) then
-         cmd:error('error: missing ImageNet data directory')
+         cmd:error('error: missing MS-Celeb-1M data directory')
       elseif not paths.dirp(trainDir) then
-         cmd:error('error: ImageNet missing `train` directory: ' .. trainDir)
+         cmd:error('error: MS-Celeb-1M missing `train` directory: ' .. trainDir)
       end
       -- Default shortcutType=B and nEpochs=90
       opt.shortcutType = opt.shortcutType == '' and 'B' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 120 or opt.nEpochs
-   elseif opt.dataset == 'cifar10' then
-      -- Default shortcutType=A and nEpochs=164
-      opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
-      opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
-   elseif opt.dataset == 'cifar100' then
-       -- Default shortcutType=A and nEpochs=164
-       opt.shortcutType = opt.shortcutType == '' and 'A' or opt.shortcutType
-       opt.nEpochs = opt.nEpochs == 0 and 164 or opt.nEpochs
+      opt.nEpochs = opt.nEpochs == 0 and 30 or opt.nEpochs
    else
       cmd:error('unknown dataset: ' .. opt.dataset)
    end
