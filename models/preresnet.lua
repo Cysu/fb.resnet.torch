@@ -159,6 +159,8 @@ local function createModel(opt)
       model:add(Avg(4, 5, 1, 1))
       model:add(nn.View(nFeatures):setNumInputDims(3))
       model:add(nn.Linear(nFeatures, 256))
+      model:add(nn.BatchNormalization(256))
+      model:add(ReLU(true))
       model:add(nn.Linear(256, 99863))
    else
       error('invalid dataset: ' .. opt.dataset)
