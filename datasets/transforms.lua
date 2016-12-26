@@ -34,27 +34,23 @@ function M.ColorNormalize(meanstd)
 end
 
 -- Scales the smaller edge to size
-function M.Scale(size, interpolation)
+function M.Scale(width, height, interpolation)
    interpolation = interpolation or 'bicubic'
    return function(input)
       local w, h = input:size(3), input:size(2)
-      if (w <= h and w == size) or (h <= w and h == size) then
+      if (w == width) and (h == height) then
          return input
       end
-      if w < h then
-         return image.scale(input, size, h/w * size, interpolation)
-      else
-         return image.scale(input, w/h * size, size, interpolation)
-      end
+      return image.scale(input, width, height, interpolation)
    end
 end
 
 -- Crop to centered rectangle
-function M.CenterCrop(size)
+function M.CenterCrop(width, height)
    return function(input)
-      local w1 = math.ceil((input:size(3) - size)/2)
-      local h1 = math.ceil((input:size(2) - size)/2)
-      return image.crop(input, w1, h1, w1 + size, h1 + size) -- center patch
+      local w1 = math.ceil((input:size(3) - width)/2)
+      local h1 = math.ceil((input:size(2) - height)/2)
+      return image.crop(input, w1, h1, w1 + width, h1 + height) -- center patch
    end
 end
 
@@ -85,8 +81,8 @@ function M.RandomCrop(size, padding)
 end
 
 -- Four corner patches and center crop from image and its horizontal reflection
-function M.TenCrop(size)
-   local centerCrop = M.CenterCrop(size)
+function M.TenCrop(width, height)
+   local centerCrop = M.CenterCrop(width, height)
 
    return function(input)
       local w, h = input:size(3), input:size(2)
@@ -94,10 +90,10 @@ function M.TenCrop(size)
       local output = {}
       for _, img in ipairs{input, image.hflip(input)} do
          table.insert(output, centerCrop(img))
-         table.insert(output, image.crop(img, 0, 0, size, size))
-         table.insert(output, image.crop(img, w-size, 0, w, size))
-         table.insert(output, image.crop(img, 0, h-size, size, h))
-         table.insert(output, image.crop(img, w-size, h-size, w, h))
+         table.insert(output, image.crop(img, 0, 0, height, width))
+         table.insert(output, image.crop(img, w-width, 0, w, height))
+         table.insert(output, image.crop(img, 0, h-height, width, h))
+         table.insert(output, image.crop(img, w-width, h-height, w, h))
       end
 
       -- View as mini-batch
@@ -127,23 +123,20 @@ function M.RandomScale(minSize, maxSize)
 end
 
 -- Random crop with size 8%-100% and aspect ratio 3/4 - 4/3 (Inception-style)
-function M.RandomSizedCrop(size)
-   local scale = M.Scale(size)
-   local crop = M.CenterCrop(size)
+function M.RandomSizedCrop(width, height)
+   local scale = M.Scale(width, height)
+   local crop = M.CenterCrop(width, height)
 
    return function(input)
       local attempt = 0
       repeat
          local area = input:size(2) * input:size(3)
-         local targetArea = torch.uniform(0.64, 1.0) * area
+         local targetArea = torch.uniform(0.9, 1.0) * area
 
-         local aspectRatio = torch.uniform(3/4, 4/3)
+         --local aspectRatio = torch.uniform(3/4, 4/3)
+         local aspectRatio = 224/256
          local w = torch.round(math.sqrt(targetArea * aspectRatio))
          local h = torch.round(math.sqrt(targetArea / aspectRatio))
-
-         if torch.uniform() < 0.5 then
-            w, h = h, w
-         end
 
          if h <= input:size(2) and w <= input:size(3) then
             local y1 = torch.random(0, input:size(2) - h)
@@ -152,7 +145,7 @@ function M.RandomSizedCrop(size)
             local out = image.crop(input, x1, y1, x1 + w, y1 + h)
             assert(out:size(2) == h and out:size(3) == w, 'wrong crop size')
 
-            return image.scale(out, size, size, 'bicubic')
+            return image.scale(out, width, height, 'bicubic')
          end
          attempt = attempt + 1
       until attempt >= 10
