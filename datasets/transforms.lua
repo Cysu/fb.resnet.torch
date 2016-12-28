@@ -123,18 +123,16 @@ function M.RandomScale(minSize, maxSize)
 end
 
 -- Random crop with size 8%-100% and aspect ratio 3/4 - 4/3 (Inception-style)
-function M.RandomSizedCrop(width, height)
-   local scale = M.Scale(width, height)
-   local crop = M.CenterCrop(width, height)
+function M.RandomSizedCrop(width, height, minScale)
+   local minScale = minScale or 0.8
 
    return function(input)
       local attempt = 0
       repeat
          local area = input:size(2) * input:size(3)
-         local targetArea = torch.uniform(0.9, 1.0) * area
+         local targetArea = torch.uniform(minScale*minScale, 1.0) * area
 
-         --local aspectRatio = torch.uniform(3/4, 4/3)
-         local aspectRatio = 224/256
+         local aspectRatio = width / height
          local w = torch.round(math.sqrt(targetArea * aspectRatio))
          local h = torch.round(math.sqrt(targetArea / aspectRatio))
 
@@ -150,8 +148,13 @@ function M.RandomSizedCrop(width, height)
          attempt = attempt + 1
       until attempt >= 10
 
-      -- fallback
-      return crop(scale(input))
+      -- fallback center crop then scale
+      local meanScale = math.sqrt((minScale*minScale + 1.0) * 0.5)
+      local cropWidth = torch.round(input:size(3) * (meanScale + 1.0) * 0.5)
+      local cropHeight = torch.round(input:size(2) * (meanScale + 1.0) * 0.5)
+      local crop = M.CenterCrop(cropWidth, cropHeight)
+      local scale = M.Scale(width, height)
+      return scale(crop(input))
    end
 end
 
