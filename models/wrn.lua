@@ -22,7 +22,7 @@ local SBatchNorm = nn.SpatialBatchNormalization
 local function createModel(opt)
    local depth = opt.depth
    local shortcutType = opt.shortcutType or 'B'
-   local iChannels
+   local iSize
 
    -- Typically shareGradInput uses the same gradInput storage for all modules
    -- of the same type. This is incorrect for some SpatialBatchNormalization
@@ -59,13 +59,25 @@ local function createModel(opt)
          end
       end
 
+      iSize = iSize / stride
+      local attention = nn.Sequential()
+         :add(Convolution(nInputPlane,1,1,1,stride,stride,0,0))
+         :add(nn.View(-1):setNumInputDims(3))
+         :add(nn.SoftMax())
+         :add(nn.View(1, iSize, iSize):setNumInputDims(1))
+         :add(nn.Replicate(nOutputPlane, 1, 3))
+
+      local residual = nn.Sequential()
+         :add(nn.ConcatTable():add(convs):add(attention))
+         :add(nn.CMulTable())
+
       local shortcut = nInputPlane == nOutputPlane and
          nn.Identity() or
          Convolution(nInputPlane,nOutputPlane,1,1,stride,stride,0,0)
 
       return block
          :add(nn.ConcatTable()
-            :add(convs)
+            :add(residual)
             :add(shortcut))
          :add(nn.CAddTable(true))
    end
@@ -113,6 +125,8 @@ local function createModel(opt)
       local k = opt.widen_factor
       local nStages = torch.Tensor{16, 16*k, 32*k, 64*k}
 
+      iSize = 32
+
       model:add(Convolution(3,nStages[1],3,3,1,1,1,1)) -- one conv at the beginning (spatial size: 32x32)
       model:add(layer(wide_basic, nStages[1], nStages[2], n, 1)) -- Stage 1 (spatial size: 32x32)
       model:add(layer(wide_basic, nStages[2], nStages[3], n, 2)) -- Stage 2 (spatial size: 16x16)
@@ -129,13 +143,19 @@ local function createModel(opt)
 
    local function ConvInit(name)
       for k,v in pairs(model:findModules(name)) do
-         local n = v.kW*v.kH*v.nOutputPlane
-         v.weight:normal(0,math.sqrt(2/n))
-         if cudnn.version >= 4000 then
-            v.bias = nil
-            v.gradBias = nil
+         if v.nOutputPlane == 1 then
+            -- Attention branch
+            v.weight:normal(0, 0.001)
+            v.bias:fill(1)
          else
-            v.bias:zero()
+            local n = v.kW*v.kH*v.nOutputPlane
+            v.weight:normal(0,math.sqrt(2/n))
+            if cudnn.version >= 4000 then
+               v.bias = nil
+               v.gradBias = nil
+            else
+               v.bias:zero()
+            end
          end
       end
    end
